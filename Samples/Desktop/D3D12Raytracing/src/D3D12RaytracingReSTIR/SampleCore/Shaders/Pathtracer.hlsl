@@ -305,7 +305,13 @@ float3 Shade(
     // This will be subtracted for hitPositions with 
     // calculated Ambient coefficient in the composition pass.
     L += g_cb.defaultAmbientIntensity * Kd;
-
+    
+    // Area light sources
+    int numSamples = g_cb.numAreaLights;
+    if (numSamples == 1)
+    {
+        L = 0.f;
+    }
     // Specular Indirect Illumination
     bool isReflective = !BxDF::IsBlack(Kr);
     bool isTransmissive = !BxDF::IsBlack(Kt);

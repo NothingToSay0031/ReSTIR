@@ -613,7 +613,7 @@ void Pathtracer::UpdateConstantBuffer(Scene& scene)
 {
     XMStoreFloat3(&m_CB->lightPosition, scene.m_lightPosition);
     m_CB->lightColor = scene.m_lightColor;
-
+    m_CB->numAreaLights = 1;
     SetCamera(scene.Camera());
 
     m_CB->maxRadianceRayRecursionDepth = Pathtracer_Args::MaxRadianceRayRecursionDepth;

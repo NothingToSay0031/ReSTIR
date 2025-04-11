@@ -192,10 +192,11 @@ namespace SortRays {
                 && RayGroup::Height <= 128
                 && RayGroup::Size <= 8192, "Ray group dimensions are outside the supported limits set by the Counting Sort shader.");
 #endif
-}
+}  // namespace SortRays
 
 struct PathtracerConstantBuffer
 {
+    int numAreaLights;
     XMMATRIX projectionToWorldWithCameraAtOrigin;
     XMFLOAT3 cameraPosition;
     BOOL     useBaseAlbedoFromMaterial;
