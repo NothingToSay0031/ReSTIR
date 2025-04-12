@@ -368,13 +368,11 @@ float3 Shade(
         }
     }
     
-    
-    // Area light sources
-    if (g_cb.numAreaLights == 1)
+    for (int i = 0; i < g_cb.numAreaLights; i++)
     {
-        L = 0.f; // Incorrect, just for the sake of test.
-        AreaLightData areaLight = g_cb.areaLights;
-
+        if (i == 0) // Just for testing area lights.
+            L = 0.f;
+        AreaLightData areaLight = g_cb.areaLights[i];
         float3 sampledPosition = SampleAreaLight(areaLight, float2(0.1, 0.2)); // Not random, just for the sake of test.
         float3 lightDir = normalize(sampledPosition - hitPosition);
         float distanceSquared = length(sampledPosition - hitPosition);

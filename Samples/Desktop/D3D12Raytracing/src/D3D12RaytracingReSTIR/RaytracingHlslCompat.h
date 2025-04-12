@@ -201,7 +201,8 @@ struct AreaLightData {
   float width;   
   XMFLOAT3 color;   
   float height;  
-  float area;   
+  float area;  
+  XMFLOAT3 padding;
 };
 
 struct PathtracerConstantBuffer
@@ -217,15 +218,15 @@ struct PathtracerConstantBuffer
     XMMATRIX prevFrameViewProj;
     XMMATRIX prevFrameProjToViewCameraAtOrigin;
     XMFLOAT3 prevFrameCameraPosition;
-    float    padding;
+
+    int numAreaLights;
 
 	  float Znear;
 	  float Zfar;
     UINT  maxRadianceRayRecursionDepth;
     UINT  maxShadowRayRecursionDepth;
 
-    AreaLightData areaLights;
-    int numAreaLights;
+    AreaLightData areaLights[32];
 };
 
 struct RTAOConstantBuffer
