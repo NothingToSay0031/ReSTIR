@@ -613,14 +613,17 @@ void Pathtracer::UpdateConstantBuffer(Scene& scene)
 {
     XMStoreFloat3(&m_CB->lightPosition, scene.m_lightPosition);
     m_CB->lightColor = scene.m_lightColor;
-    m_CB->numAreaLights = 1;  // TODO: support multiple area lights
-    m_CB->areaLights.position = m_CB->lightPosition;
-    m_CB->areaLights.normal = XMFLOAT3(1, 1, 1);
-    m_CB->areaLights.color = scene.m_lightColor;
-    m_CB->areaLights.intensity = 100;
-    m_CB->areaLights.width = 1;
-    m_CB->areaLights.height = 1;
-    m_CB->areaLights.area = 1;
+    m_CB->numAreaLights = 10; 
+    for (UINT i = 1; i < m_CB->numAreaLights; i++) {
+      // TODO: support multiple area lights
+      m_CB->areaLights[i].position = m_CB->lightPosition;
+      m_CB->areaLights[i].normal = XMFLOAT3(1, 1, 1);
+      m_CB->areaLights[i].color = scene.m_lightColor;
+      m_CB->areaLights[i].intensity = 100;
+      m_CB->areaLights[i].width = 1;
+      m_CB->areaLights[i].height = 1;
+      m_CB->areaLights[i].area = 1;
+    }
     
     SetCamera(scene.Camera());
 
