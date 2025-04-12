@@ -312,36 +312,6 @@ float3 Shade(
             wi);
     }
     
-    // Area light sources
-    if (g_cb.numAreaLights == 1)
-    {
-        L = 0.f; // Incorrect, just for the sake of test.
-        AreaLightData areaLight = g_cb.areaLights;
-
-        float3 sampledPosition = SampleAreaLight(areaLight, float2(0.1, 0.2)); // Not random, just for the sake of test.
-        float3 lightDir = normalize(sampledPosition - hitPosition);
-        float distanceSquared = length(sampledPosition - hitPosition);
-        float3 lightNormal = lightDir; // Incorrect, just for the sake of test.
-
-        bool isInShadow = TraceShadowRayAndReportIfHit(hitPosition, lightDir, N, rayPayload);
-
-        if (!isInShadow && dot(lightDir, lightNormal) > 0)
-        {
-            float3 radiance = areaLight.color * areaLight.intensity / distanceSquared;
-
-            L += BxDF::DirectLighting::Shade(
-            material.type,
-            Kd,
-            Ks,
-            radiance,
-            false,
-            roughness,
-            N,
-            V,
-            lightDir) * dot(lightDir, lightNormal) * areaLight.area;
-        }
-    }
-    
     // Ambient Indirect Illumination
     // Add a default ambient contribution to all hits. 
     // This will be subtracted for hitPositions with 
@@ -395,6 +365,37 @@ float3 Shade(
                 L += Ft * TraceRefractedGBufferRay(hitPosition, wt, N, objectNormal, refractedRayPayLoad);
                 UpdateAOGBufferOnLargerDiffuseComponent(rayPayload, refractedRayPayLoad, Ft);
             }
+        }
+    }
+    
+    
+    // Area light sources
+    if (g_cb.numAreaLights == 1)
+    {
+        L = 0.f; // Incorrect, just for the sake of test.
+        AreaLightData areaLight = g_cb.areaLights;
+
+        float3 sampledPosition = SampleAreaLight(areaLight, float2(0.1, 0.2)); // Not random, just for the sake of test.
+        float3 lightDir = normalize(sampledPosition - hitPosition);
+        float distanceSquared = length(sampledPosition - hitPosition);
+        float3 lightNormal = areaLight.normal;
+
+        bool isInShadow = TraceShadowRayAndReportIfHit(hitPosition, lightDir, N, rayPayload);
+
+        if (!isInShadow && dot(lightDir, lightNormal) > 0)
+        {
+            float3 radiance = areaLight.color * areaLight.intensity / distanceSquared;
+
+            L += BxDF::DirectLighting::Shade(
+            material.type,
+            Kd,
+            Ks,
+            radiance,
+            false,
+            roughness,
+            N,
+            V,
+            lightDir) * dot(lightDir, lightNormal) * areaLight.area;
         }
     }
 
