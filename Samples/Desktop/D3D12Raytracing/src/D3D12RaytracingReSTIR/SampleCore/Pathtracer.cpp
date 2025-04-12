@@ -613,7 +613,15 @@ void Pathtracer::UpdateConstantBuffer(Scene& scene)
 {
     XMStoreFloat3(&m_CB->lightPosition, scene.m_lightPosition);
     m_CB->lightColor = scene.m_lightColor;
-    m_CB->numAreaLights = 1;
+    m_CB->numAreaLights = 1;  // TODO: support multiple area lights
+    m_CB->areaLights.position = m_CB->lightPosition;
+    m_CB->areaLights.normal = XMFLOAT3(1, 1, 1);
+    m_CB->areaLights.color = scene.m_lightColor;
+    m_CB->areaLights.intensity = 100;
+    m_CB->areaLights.width = 1;
+    m_CB->areaLights.height = 1;
+    m_CB->areaLights.area = 1;
+    
     SetCamera(scene.Camera());
 
     m_CB->maxRadianceRayRecursionDepth = Pathtracer_Args::MaxRadianceRayRecursionDepth;

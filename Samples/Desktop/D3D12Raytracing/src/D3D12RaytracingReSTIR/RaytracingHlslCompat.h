@@ -194,9 +194,18 @@ namespace SortRays {
 #endif
 }  // namespace SortRays
 
+struct AreaLightData {
+  XMFLOAT3 position;
+  float intensity; 
+  XMFLOAT3 normal;
+  float width;   
+  XMFLOAT3 color;   
+  float height;  
+  float area;   
+};
+
 struct PathtracerConstantBuffer
 {
-    int numAreaLights;
     XMMATRIX projectionToWorldWithCameraAtOrigin;
     XMFLOAT3 cameraPosition;
     BOOL     useBaseAlbedoFromMaterial;
@@ -210,11 +219,13 @@ struct PathtracerConstantBuffer
     XMFLOAT3 prevFrameCameraPosition;
     float    padding;
 
-	float Znear;
-	float Zfar;
+	  float Znear;
+	  float Zfar;
     UINT  maxRadianceRayRecursionDepth;
     UINT  maxShadowRayRecursionDepth;
 
+    AreaLightData areaLights;
+    int numAreaLights;
 };
 
 struct RTAOConstantBuffer

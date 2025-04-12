@@ -261,6 +261,18 @@ void UpdateAOGBufferOnLargerDiffuseComponent(inout PathtracerRayPayload rayPaylo
     }
 }
 
+float3 SampleAreaLight(AreaLightData light, float2 randomSample)
+{
+    // Sample a point on the area light surface.
+    float3 tangent = normalize(cross(light.normal, float3(0, 1, 0)));
+    float3 bitangent = cross(light.normal, tangent);
+
+    float3 samplePoint = light.position +
+                         (randomSample.x - 0.5) * light.width * tangent +
+                         (randomSample.y - 0.5) * light.height * bitangent;
+
+    return samplePoint;
+}
 float3 Shade(
     inout PathtracerRayPayload rayPayload,
     in float3 N,
@@ -299,19 +311,43 @@ float3 Shade(
             V,
             wi);
     }
+    
+    // Area light sources
+    if (g_cb.numAreaLights == 1)
+    {
+        L = 0.f; // Incorrect, just for the sake of test.
+        AreaLightData areaLight = g_cb.areaLights;
 
+        float3 sampledPosition = SampleAreaLight(areaLight, float2(0.1, 0.2)); // Not random, just for the sake of test.
+        float3 lightDir = normalize(sampledPosition - hitPosition);
+        float distanceSquared = length(sampledPosition - hitPosition);
+        float3 lightNormal = lightDir; // Incorrect, just for the sake of test.
+
+        bool isInShadow = TraceShadowRayAndReportIfHit(hitPosition, lightDir, N, rayPayload);
+
+        if (!isInShadow && dot(lightDir, lightNormal) > 0)
+        {
+            float3 radiance = areaLight.color * areaLight.intensity / distanceSquared;
+
+            L += BxDF::DirectLighting::Shade(
+            material.type,
+            Kd,
+            Ks,
+            radiance,
+            false,
+            roughness,
+            N,
+            V,
+            lightDir) * dot(lightDir, lightNormal) * areaLight.area;
+        }
+    }
+    
     // Ambient Indirect Illumination
     // Add a default ambient contribution to all hits. 
     // This will be subtracted for hitPositions with 
     // calculated Ambient coefficient in the composition pass.
     L += g_cb.defaultAmbientIntensity * Kd;
     
-    // Area light sources
-    int numSamples = g_cb.numAreaLights;
-    if (numSamples == 1)
-    {
-        L = 0.f;
-    }
     // Specular Indirect Illumination
     bool isReflective = !BxDF::IsBlack(Kr);
     bool isTransmissive = !BxDF::IsBlack(Kt);
