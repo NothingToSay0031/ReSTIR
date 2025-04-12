@@ -33,26 +33,41 @@ D3D12RaytracingHelloWorld::D3D12RaytracingHelloWorld(UINT width, UINT height, st
 void D3D12RaytracingHelloWorld::OnInit()
 {
     m_deviceResources = std::make_unique<DeviceResources>(
-        DXGI_FORMAT_R8G8B8A8_UNORM,
-        DXGI_FORMAT_UNKNOWN,
-        FrameCount,
-        D3D_FEATURE_LEVEL_11_0,
+        DXGI_FORMAT_R8G8B8A8_UNORM, //This says the swap chain¡¯s back buffers will have 4 color channels (red, green, blue, alpha), each 8 bits, in an unsigned normalized format (values from 0.0 to 1.0 internally)
+        DXGI_FORMAT_UNKNOWN,//The depth buffer format is set to ¡°unknown,¡± meaning we are not actively using a depth-stencil format in this sample
+        FrameCount,//This is typically the number of back buffers in our swap chain
+        D3D_FEATURE_LEVEL_11_0,//This is the minimum Direct3D feature level we want; basically it ensures our GPU supports at least the features from Direct3D 11.0
         // Sample shows handling of use cases with tearing support, which is OS dependent and has been supported since TH2.
         // Since the sample requires build 1809 (RS5) or higher, we don't need to handle non-tearing cases.
-        DeviceResources::c_RequireTearingSupport,
+        DeviceResources::c_RequireTearingSupport, 
         m_adapterIDoverride
         );
-    m_deviceResources->RegisterDeviceNotify(this);
+    //We create a new DeviceResources object (our own helper class) on the heap (using std::make_unique), 
+    //then store it in the member variable m_deviceResources
+
+    m_deviceResources->RegisterDeviceNotify(this); 
+    //Here we say, ¡°if anything happens to the device¡ªlike if it¡¯s lost or reset¡ªtell this object (the D3D12RaytracingHelloWorld class).¡±
+    //This lets the sample handle events like device removal or driver updates, so it can recreate necessary resources if the GPU resets
     m_deviceResources->SetWindow(Win32Application::GetHwnd(), m_width, m_height);
+    //We give DeviceResources the handle to our application window (GetHwnd()) and the desired width/height
     m_deviceResources->InitializeDXGIAdapter();
 
     ThrowIfFalse(IsDirectXRaytracingSupported(m_deviceResources->GetAdapter()),
         L"ERROR: DirectX Raytracing is not supported by your OS, GPU and/or driver.\n\n");
 
     m_deviceResources->CreateDeviceResources();
+    //Inside DeviceResources, this is where it actually creates the D3D12 device (ID3D12Device), the main interface to the GPU. It also sets up a command queue, a descriptor heap for render targets, and so on.
+    //The D3D12 device is your handle to create GPU resources (textures, buffers), to create pipeline states, etc.
     m_deviceResources->CreateWindowSizeDependentResources();
-
+    //This sets up (or resizes) the swap chain and the back buffers according to the window size we provided.
     CreateDeviceDependentResources();
+    //This is our sample¡¯s method that sets up additional GPU resources needed for raytracing:
+    //The raytracing pipeline state object
+    //Acceleration structures(top - level and bottom - level).
+    // Raytracing output texture.
+    //Root signatures, etc.
+
+
     CreateWindowSizeDependentResources();
 }
 
@@ -96,6 +111,36 @@ void D3D12RaytracingHelloWorld::SerializeAndCreateRaytracingRootSignature(D3D12_
     ThrowIfFailed(device->CreateRootSignature(1, blob->GetBufferPointer(), blob->GetBufferSize(), IID_PPV_ARGS(&(*rootSig))));
 }
 
+/*
+Background Info:
+
+Unordered Access View (UAV)
+    What it is: A UAV (Unordered Access View) is a way for the GPU to randomly read from and write to a resource (like a texture or buffer) at any location during rendering or compute.
+    Why it¡¯s called ¡°unordered¡±: It means the access order is not guaranteed or strictly pipeline-ordered in the same way as a render target or depth buffer. Multiple threads/shaders can read and write with fewer restrictions.
+    Key Usage:
+    Compute shaders (and raytracing shaders) often need the ability to write anywhere in a buffer or texture.
+    For example, a compute shader might write out the final image data directly into a UAV texture. Or a ray generation shader might write color values into a UAV.
+
+UAV Descriptor
+    What it is: A descriptor is effectively a small data structure (stored in a descriptor heap) that describes where the actual UAV resource lives in memory, how large it is, what format, and so on.
+    In DirectX 12, we don¡¯t just bind the resource directly; instead, we create a descriptor that references it. Then we place that descriptor in a descriptor heap.
+    Shaders don¡¯t see the resource directly. They see references to descriptors, which in turn point to the actual resource.
+    So a ¡°UAV descriptor¡± is specifically a descriptor that the GPU can use to read/write via an Unordered Access View.
+
+Shader Resource View (SRV)
+    What it is: An SRV (Shader Resource View) is a read-only binding that your shaders can sample or read from, typically used for textures or buffers as input data.
+    For example, a texture that a pixel shader samples to get color data is typically an SRV.
+    Or a buffer containing geometry or constants might be bound as an SRV for reading in a compute or raytracing shader.
+
+Global Root Signature: Shared by all raytracing shaders during a DispatchRays call.
+    For example, in this sample:
+    The UAV descriptor for the output texture is the same across RayGen, Miss, and Hit shaders.
+    The Acceleration Structure SRV is also the same for all shaders.
+
+Local Root Signature: Tied to specific shader stages or shader groups.
+    In the sample, the local root signature is used to pass per-shader or per-instance constants from the shader tables. For example, the RayGen shader might get a few constants that define viewport or some transformation.
+    Local signatures let you have different (or no) local parameters for different shaders (RayGen, Miss, Hit).
+*/
 void D3D12RaytracingHelloWorld::CreateRootSignatures()
 {
     // Global Root Signature
@@ -103,9 +148,12 @@ void D3D12RaytracingHelloWorld::CreateRootSignatures()
     {
         CD3DX12_DESCRIPTOR_RANGE UAVDescriptor;
         UAVDescriptor.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
+        //We want to have 1 UAV descriptor in this range. The base shader register is 0 (so it¡¯s u0 in HLSL).
         CD3DX12_ROOT_PARAMETER rootParameters[GlobalRootSignatureParams::Count];
         rootParameters[GlobalRootSignatureParams::OutputViewSlot].InitAsDescriptorTable(1, &UAVDescriptor);
+        //This configures one root parameter to be a descriptor table for that single UAV descriptor range we just created.
         rootParameters[GlobalRootSignatureParams::AccelerationStructureSlot].InitAsShaderResourceView(0);
+        //The second parameter is a single SRV (shader resource view) at register t0 (the ¡°0¡± is the shader register). This is for the raytracing acceleration structure.
         CD3DX12_ROOT_SIGNATURE_DESC globalRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
         SerializeAndCreateRaytracingRootSignature(globalRootSignatureDesc, &m_raytracingGlobalRootSignature);
     }
@@ -130,6 +178,8 @@ void D3D12RaytracingHelloWorld::CreateRaytracingInterfaces()
     ThrowIfFailed(device->QueryInterface(IID_PPV_ARGS(&m_dxrDevice)), L"Couldn't get DirectX Raytracing interface for the device.\n");
     ThrowIfFailed(commandList->QueryInterface(IID_PPV_ARGS(&m_dxrCommandList)), L"Couldn't get DirectX Raytracing interface for the command list.\n");
 }
+
+
 
 // Local root signature and shader association
 // This is a root signature that enables a shader to have unique arguments that come from shader tables.
@@ -221,6 +271,7 @@ void D3D12RaytracingHelloWorld::CreateRaytracingPipelineStateObject()
     // Create the state object.
     ThrowIfFailed(m_dxrDevice->CreateStateObject(raytracingPipeline, IID_PPV_ARGS(&m_dxrStateObject)), L"Couldn't create DirectX Raytracing state object.\n");
 }
+
 
 // Create 2D output texture for raytracing.
 void D3D12RaytracingHelloWorld::CreateRaytracingOutputResource()
