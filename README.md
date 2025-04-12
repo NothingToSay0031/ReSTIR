@@ -1,3 +1,32 @@
+# CSCI-580 Project: Raytracing ReSTIR Implementation
+
+## TODO List
+
+### Preparation
+- [x] Build and run the DX12 sample: `D3D12RaytracingRealTimeDenoisedAmbientOcclusion`
+    - Press key 3 to enter PBR path tracer mode — this will be the base for modifications
+- [x] Learn the basics of ReSTIR
+    - https://intro-to-restir.cwyman.org
+    - https://cs.dartmouth.edu/~wjarosz/publications/bitterli20spatiotemporal.html
+
+### Baseline Setup
+- [x] Modify the test scene:
+    - [x] Generate Area Lights (currently only directional light is used)
+    - [x] Pass Area Lights data to the shader
+- [ ] Update the existing path tracer:
+    - [ ] Add support for sampling from Area Lights
+    - This will serve as the baseline for comparison with ReSTIR
+### Implement ReSTIR
+- [ ] Integrate ReSTIR into the path tracer mode
+- [ ] Use Area Lights as candidate light sources
+- [ ] Implement core logic: sample reuse, importance sampling, etc.
+- [ ] Compare results visually and performance-wise with the baseline
+### Test Variants & Tuning
+- [ ] Experiment with different ReSTIR parameters (e.g. reservoir size, spatial reuse radius, etc.)
+- [ ] Compare performance and quality across different settings
+- [ ] Modify the default scene (optional)
+    - Add or adjust geometry from https://github.com/wallisc/DuosRenderer/tree/DXRRenderer/Assets
+- [ ] Create setups to better showcase differences between techniques
 
 # DirectX-Graphics-Samples
 This repo contains the DirectX 12 Graphics samples that demonstrate how to build graphics intensive applications for Windows 10.
