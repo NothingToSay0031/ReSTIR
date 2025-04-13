@@ -653,8 +653,8 @@ void Pathtracer::UpdateConstantBuffer(Scene& scene)
     XMFLOAT3 center = m_CB->lightPosition;
     XMFLOAT3 color = scene.m_lightColor;
 
-    GenerateAreaLights(10, center, 15.0f, color, 100.0f, 1.0f, 1.0f);
-
+    GenerateAreaLights(10, center, 5.0f, color, 1000.0f, 1.0f, 1.0f);
+    
     SetCamera(scene.Camera());
 
     m_CB->maxRadianceRayRecursionDepth = Pathtracer_Args::MaxRadianceRayRecursionDepth;

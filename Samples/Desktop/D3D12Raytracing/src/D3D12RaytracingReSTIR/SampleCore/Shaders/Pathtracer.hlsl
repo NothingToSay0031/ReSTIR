@@ -316,21 +316,38 @@ float3 Shade(
     rayPayload.AOGBuffer.diffuseByte3 = NormalizedFloat3ToByte3(Kd);
     if (!BxDF::IsBlack(material.Kd) || !BxDF::IsBlack(material.Ks))
     {
-        float3 wi = normalize(g_cb.lightPosition.xyz - hitPosition);
-
-        // Raytraced shadows.
-        bool isInShadow = TraceShadowRayAndReportIfHit(hitPosition, wi, N, rayPayload);
-
-        L += BxDF::DirectLighting::Shade(
-            material.type,
-            Kd,
-            Ks,
-            g_cb.lightColor.xyz,
-            isInShadow,
-            roughness,
-            N,
-            V,
-            wi);
+        if (g_cb.numAreaLights > 0)
+        {
+            uint seed = asuint(hitPosition.x * 1234.5678 + hitPosition.y * 5678.1234);
+        
+            uint lightIndex = seed % g_cb.numAreaLights;
+            AreaLightData areaLight = g_cb.areaLights[lightIndex];
+        
+            float3 sampledPosition = SampleAreaLight(areaLight, seed);
+            float3 lightDir = normalize(sampledPosition - hitPosition);
+            float distanceSquared = dot(sampledPosition - hitPosition, sampledPosition - hitPosition);
+            float3 lightNormal = areaLight.normal;
+        
+            bool isInShadow = TraceShadowRayAndReportIfHit(hitPosition, lightDir, N, rayPayload);
+        
+            if (!isInShadow && dot(lightDir, lightNormal) > 0)
+            {
+                float3 radiance = areaLight.color * areaLight.intensity / distanceSquared;
+            
+                float3 contribution = BxDF::DirectLighting::Shade(
+                    material.type,
+                    Kd,
+                    Ks,
+                    radiance,
+                    false,
+                    roughness,
+                    N,
+                    V,
+                    lightDir) * abs(dot(lightDir, lightNormal)) * areaLight.area;
+                
+                L += contribution * g_cb.numAreaLights;
+            }
+        }
     }
     
     // Ambient Indirect Illumination
@@ -389,38 +406,6 @@ float3 Shade(
         }
     }
     
-    uint seed = asuint(hitPosition.x * 1234.5678 + hitPosition.y * 5678.1234); // Initialize seed based on hit position
-    for (int i = 0; i < g_cb.numAreaLights; i++)
-    {
-        if (i == 0)
-        {
-            L = 0; // Reset L for the first area light
-        }
-        AreaLightData areaLight = g_cb.areaLights[i];
-        float3 sampledPosition = SampleAreaLight(areaLight, seed);
-        float3 lightDir = normalize(sampledPosition - hitPosition);
-        float distanceSquared = length(sampledPosition - hitPosition);
-        float3 lightNormal = areaLight.normal;
-
-        bool isInShadow = TraceShadowRayAndReportIfHit(hitPosition, lightDir, N, rayPayload);
-
-        if (!isInShadow && dot(lightDir, lightNormal) > 0)
-        {
-            float3 radiance = areaLight.color * areaLight.intensity / distanceSquared;
-
-            L += BxDF::DirectLighting::Shade(
-            material.type,
-            Kd,
-            Ks,
-            radiance,
-            false,
-            roughness,
-            N,
-            V,
-            lightDir) * dot(lightDir, lightNormal) * areaLight.area;
-        }
-    }
-
     return L;
 }
 
