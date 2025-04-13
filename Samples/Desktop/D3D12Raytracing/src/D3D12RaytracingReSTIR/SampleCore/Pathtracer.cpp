@@ -613,17 +613,31 @@ void Pathtracer::UpdateConstantBuffer(Scene& scene)
 {
     XMStoreFloat3(&m_CB->lightPosition, scene.m_lightPosition);
     m_CB->lightColor = scene.m_lightColor;
-    m_CB->numAreaLights = 10; 
-    for (UINT i = 1; i < m_CB->numAreaLights; i++) {
-      // TODO: support multiple area lights
-      m_CB->areaLights[i].position = m_CB->lightPosition;
-      m_CB->areaLights[i].normal = XMFLOAT3(1, 1, 1);
-      m_CB->areaLights[i].color = scene.m_lightColor;
-      m_CB->areaLights[i].intensity = 100;
-      m_CB->areaLights[i].width = 1;
-      m_CB->areaLights[i].height = 1;
-      m_CB->areaLights[i].area = 1;
-    }
+
+    auto GenerateAreaLights =
+        [&](UINT numLights, const XMFLOAT3& basePosition,
+            const XMFLOAT3& spacing, const XMFLOAT3& baseNormal,
+            const XMFLOAT3& color, float intensity, float width, float height) {
+          m_CB->numAreaLights = numLights;
+          for (UINT i = 0; i < numLights; i++) {
+            XMFLOAT3 position = {basePosition.x + i * spacing.x,
+                                 basePosition.y + i * spacing.y,
+                                 basePosition.z + i * spacing.z};
+            m_CB->areaLights[i].position = position;
+            m_CB->areaLights[i].normal = baseNormal;
+            m_CB->areaLights[i].color = color;
+            m_CB->areaLights[i].intensity = intensity;
+            m_CB->areaLights[i].width = width;
+            m_CB->areaLights[i].height = height;
+            m_CB->areaLights[i].area = width * height;
+          }
+        };
+    XMFLOAT3 basePos = m_CB->lightPosition;
+    XMFLOAT3 spacing = XMFLOAT3(-2.0f, 0.0f, -2.0f);
+    XMFLOAT3 normal = XMFLOAT3(1.f, 1.f, 1.f);
+    XMFLOAT3 color = scene.m_lightColor;
+
+    GenerateAreaLights(10, basePos, spacing, normal, color, 10.0f, 1.0f, 1.0f);
     
     SetCamera(scene.Camera());
 

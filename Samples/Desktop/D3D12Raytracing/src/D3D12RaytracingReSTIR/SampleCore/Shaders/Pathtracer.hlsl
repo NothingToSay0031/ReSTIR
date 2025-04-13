@@ -392,6 +392,10 @@ float3 Shade(
     uint seed = asuint(hitPosition.x * 1234.5678 + hitPosition.y * 5678.1234); // Initialize seed based on hit position
     for (int i = 0; i < g_cb.numAreaLights; i++)
     {
+        if (i == 0)
+        {
+            L = 0; // Reset L for the first area light
+        }
         AreaLightData areaLight = g_cb.areaLights[i];
         float3 sampledPosition = SampleAreaLight(areaLight, seed);
         float3 lightDir = normalize(sampledPosition - hitPosition);
@@ -416,7 +420,6 @@ float3 Shade(
             lightDir) * dot(lightDir, lightNormal) * areaLight.area;
         }
     }
-
 
     return L;
 }
