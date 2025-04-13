@@ -615,16 +615,34 @@ void Pathtracer::UpdateConstantBuffer(Scene& scene)
     m_CB->lightColor = scene.m_lightColor;
 
     auto GenerateAreaLights =
-        [&](UINT numLights, const XMFLOAT3& basePosition,
-            const XMFLOAT3& spacing, const XMFLOAT3& baseNormal,
+        [&](UINT numLights, const XMFLOAT3& centerPosition, float radius,
             const XMFLOAT3& color, float intensity, float width, float height) {
           m_CB->numAreaLights = numLights;
+
+          XMVECTOR centerVec = XMLoadFloat3(&centerPosition);
+
           for (UINT i = 0; i < numLights; i++) {
-            XMFLOAT3 position = {basePosition.x + i * spacing.x,
-                                 basePosition.y + i * spacing.y,
-                                 basePosition.z + i * spacing.z};
+            // Fibonacci Hemisphere
+            float phi = i * XM_2PI / 1.618f;  // Golden angle
+            float y = 1.0f - float(i) / float(numLights); 
+            float r = sqrtf(1.0f - y * y);         
+            float x = cosf(phi) * r;
+            float z = sinf(phi) * r;
+
+            XMFLOAT3 offset = XMFLOAT3(x * radius, y * radius, z * radius);
+            XMVECTOR offsetVec = XMLoadFloat3(&offset);
+            XMVECTOR posVec = XMVectorAdd(centerVec, offsetVec);
+
+            XMFLOAT3 position;
+            XMStoreFloat3(&position, posVec);
             m_CB->areaLights[i].position = position;
-            m_CB->areaLights[i].normal = baseNormal;
+
+            XMVECTOR normalVec =
+                XMVector3Normalize(XMVectorSubtract(centerVec, posVec));
+            XMFLOAT3 normal;
+            XMStoreFloat3(&normal, normalVec);
+            m_CB->areaLights[i].normal = normal;
+
             m_CB->areaLights[i].color = color;
             m_CB->areaLights[i].intensity = intensity;
             m_CB->areaLights[i].width = width;
@@ -632,13 +650,11 @@ void Pathtracer::UpdateConstantBuffer(Scene& scene)
             m_CB->areaLights[i].area = width * height;
           }
         };
-    XMFLOAT3 basePos = m_CB->lightPosition;
-    XMFLOAT3 spacing = XMFLOAT3(-2.0f, 0.0f, -2.0f);
-    XMFLOAT3 normal = XMFLOAT3(1.f, 1.f, 1.f);
+    XMFLOAT3 center = m_CB->lightPosition;
     XMFLOAT3 color = scene.m_lightColor;
 
-    GenerateAreaLights(10, basePos, spacing, normal, color, 10.0f, 1.0f, 1.0f);
-    
+    GenerateAreaLights(10, center, 15.0f, color, 100.0f, 1.0f, 1.0f);
+
     SetCamera(scene.Camera());
 
     m_CB->maxRadianceRayRecursionDepth = Pathtracer_Args::MaxRadianceRayRecursionDepth;
