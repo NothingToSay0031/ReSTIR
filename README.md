@@ -13,8 +13,8 @@
 - [x] Modify the test scene:
     - [x] Generate Area Lights (currently only directional light is used)
     - [x] Pass Area Lights data to the shader
-- [ ] Update the existing path tracer:
-    - [ ] Add support for sampling from Area Lights
+- [x] Update the existing path tracer:
+    - [x] Add support for sampling from Area Lights
     - This will serve as the baseline for comparison with ReSTIR
 ### Implement ReSTIR
 - [ ] Integrate ReSTIR into the path tracer mode

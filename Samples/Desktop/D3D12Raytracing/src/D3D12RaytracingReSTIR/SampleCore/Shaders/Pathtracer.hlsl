@@ -318,6 +318,7 @@ float3 Shade(
     {
         if (g_cb.numAreaLights > 0)
         {
+            // Sample a random area light
             uint seed = asuint(hitPosition.x * 1234.5678 + hitPosition.y * 5678.1234);
         
             uint lightIndex = seed % g_cb.numAreaLights;
