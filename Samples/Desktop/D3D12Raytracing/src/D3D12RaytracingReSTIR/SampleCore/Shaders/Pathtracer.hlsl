@@ -260,10 +260,30 @@ void UpdateAOGBufferOnLargerDiffuseComponent(inout PathtracerRayPayload rayPaylo
         rayPayload.AOGBuffer.diffuseByte3 = NormalizedFloat3ToByte3(_diffuse);
     }
 }
-
-float3 SampleAreaLight(AreaLightData light, float2 randomSample)
+// Hash function to generate pseudo-random numbers
+float Hash(uint seed)
 {
-    // Sample a point on the area light surface.
+    seed = (seed ^ 61) ^ (seed >> 16);
+    seed *= 9;
+    seed = seed ^ (seed >> 4);
+    seed *= 0x27d4eb2d;
+    seed = seed ^ (seed >> 15);
+    return float(seed & 0xFFFFFF) / float(0x1000000); // Normalize to [0, 1)
+}
+
+// Generate a random float in the range [0, 1)
+float RandomFloat(inout uint seed)
+{
+    seed += 1; // Increment the seed to ensure different results
+    return Hash(seed);
+}
+
+float3 SampleAreaLight(AreaLightData light, uint seed)
+{
+    // Generate random samples
+    float2 randomSample = float2(RandomFloat(seed), RandomFloat(seed));
+
+    // Sample a point on the area light surface
     float3 tangent = normalize(cross(light.normal, float3(0, 1, 0)));
     float3 bitangent = cross(light.normal, tangent);
 
@@ -273,6 +293,7 @@ float3 SampleAreaLight(AreaLightData light, float2 randomSample)
 
     return samplePoint;
 }
+
 float3 Shade(
     inout PathtracerRayPayload rayPayload,
     in float3 N,
@@ -368,12 +389,15 @@ float3 Shade(
         }
     }
     
+    uint seed = asuint(hitPosition.x * 1234.5678 + hitPosition.y * 5678.1234); // Initialize seed based on hit position
     for (int i = 0; i < g_cb.numAreaLights; i++)
     {
-        if (i == 0) // Just for testing area lights.
-            L = 0.f;
+        if (i == 0)
+        {
+            L = 0; // Reset L for the first area light
+        }
         AreaLightData areaLight = g_cb.areaLights[i];
-        float3 sampledPosition = SampleAreaLight(areaLight, float2(0.1, 0.2)); // Not random, just for the sake of test.
+        float3 sampledPosition = SampleAreaLight(areaLight, seed);
         float3 lightDir = normalize(sampledPosition - hitPosition);
         float distanceSquared = length(sampledPosition - hitPosition);
         float3 lightNormal = areaLight.normal;
