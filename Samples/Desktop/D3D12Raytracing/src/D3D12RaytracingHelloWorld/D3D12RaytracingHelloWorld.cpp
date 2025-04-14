@@ -1,4 +1,4 @@
-//*********************************************************
+Ôªø//*********************************************************
 //
 // Copyright (c) Microsoft. All rights reserved.
 // This code is licensed under the MIT License (MIT).
@@ -33,8 +33,8 @@ D3D12RaytracingHelloWorld::D3D12RaytracingHelloWorld(UINT width, UINT height, st
 void D3D12RaytracingHelloWorld::OnInit()
 {
     m_deviceResources = std::make_unique<DeviceResources>(
-        DXGI_FORMAT_R8G8B8A8_UNORM, //This says the swap chain°Øs back buffers will have 4 color channels (red, green, blue, alpha), each 8 bits, in an unsigned normalized format (values from 0.0 to 1.0 internally)
-        DXGI_FORMAT_UNKNOWN,//The depth buffer format is set to °∞unknown,°± meaning we are not actively using a depth-stencil format in this sample
+        DXGI_FORMAT_R8G8B8A8_UNORM, //This says the swap chain‚Äôs back buffers will have 4 color channels (red, green, blue, alpha), each 8 bits, in an unsigned normalized format (values from 0.0 to 1.0 internally)
+        DXGI_FORMAT_UNKNOWN,//The depth buffer format is set to ‚Äúunknown,‚Äù meaning we are not actively using a depth-stencil format in this sample
         FrameCount,//This is typically the number of back buffers in our swap chain
         D3D_FEATURE_LEVEL_11_0,//This is the minimum Direct3D feature level we want; basically it ensures our GPU supports at least the features from Direct3D 11.0
         // Sample shows handling of use cases with tearing support, which is OS dependent and has been supported since TH2.
@@ -46,7 +46,7 @@ void D3D12RaytracingHelloWorld::OnInit()
     //then store it in the member variable m_deviceResources
 
     m_deviceResources->RegisterDeviceNotify(this); 
-    //Here we say, °∞if anything happens to the device°™like if it°Øs lost or reset°™tell this object (the D3D12RaytracingHelloWorld class).°±
+    //Here we say, ‚Äúif anything happens to the device‚Äîlike if it‚Äôs lost or reset‚Äîtell this object (the D3D12RaytracingHelloWorld class).‚Äù
     //This lets the sample handle events like device removal or driver updates, so it can recreate necessary resources if the GPU resets
     m_deviceResources->SetWindow(Win32Application::GetHwnd(), m_width, m_height);
     //We give DeviceResources the handle to our application window (GetHwnd()) and the desired width/height
@@ -61,7 +61,7 @@ void D3D12RaytracingHelloWorld::OnInit()
     m_deviceResources->CreateWindowSizeDependentResources();
     //This sets up (or resizes) the swap chain and the back buffers according to the window size we provided.
     CreateDeviceDependentResources();
-    //This is our sample°Øs method that sets up additional GPU resources needed for raytracing:
+    //This is our sample‚Äôs method that sets up additional GPU resources needed for raytracing:
     //The raytracing pipeline state object
     //Acceleration structures(top - level and bottom - level).
     // Raytracing output texture.
@@ -116,16 +116,16 @@ Background Info:
 
 Unordered Access View (UAV)
     What it is: A UAV (Unordered Access View) is a way for the GPU to randomly read from and write to a resource (like a texture or buffer) at any location during rendering or compute.
-    Why it°Øs called °∞unordered°±: It means the access order is not guaranteed or strictly pipeline-ordered in the same way as a render target or depth buffer. Multiple threads/shaders can read and write with fewer restrictions.
+    Why it‚Äôs called ‚Äúunordered‚Äù: It means the access order is not guaranteed or strictly pipeline-ordered in the same way as a render target or depth buffer. Multiple threads/shaders can read and write with fewer restrictions.
     Key Usage:
     Compute shaders (and raytracing shaders) often need the ability to write anywhere in a buffer or texture.
     For example, a compute shader might write out the final image data directly into a UAV texture. Or a ray generation shader might write color values into a UAV.
 
 UAV Descriptor
     What it is: A descriptor is effectively a small data structure (stored in a descriptor heap) that describes where the actual UAV resource lives in memory, how large it is, what format, and so on.
-    In DirectX 12, we don°Øt just bind the resource directly; instead, we create a descriptor that references it. Then we place that descriptor in a descriptor heap.
-    Shaders don°Øt see the resource directly. They see references to descriptors, which in turn point to the actual resource.
-    So a °∞UAV descriptor°± is specifically a descriptor that the GPU can use to read/write via an Unordered Access View.
+    In DirectX 12, we don‚Äôt just bind the resource directly; instead, we create a descriptor that references it. Then we place that descriptor in a descriptor heap.
+    Shaders don‚Äôt see the resource directly. They see references to descriptors, which in turn point to the actual resource.
+    So a ‚ÄúUAV descriptor‚Äù is specifically a descriptor that the GPU can use to read/write via an Unordered Access View.
 
 Shader Resource View (SRV)
     What it is: An SRV (Shader Resource View) is a read-only binding that your shaders can sample or read from, typically used for textures or buffers as input data.
@@ -148,12 +148,12 @@ void D3D12RaytracingHelloWorld::CreateRootSignatures()
     {
         CD3DX12_DESCRIPTOR_RANGE UAVDescriptor;
         UAVDescriptor.Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
-        //We want to have 1 UAV descriptor in this range. The base shader register is 0 (so it°Øs u0 in HLSL).
+        //We want to have 1 UAV descriptor in this range. The base shader register is 0 (so it‚Äôs u0 in HLSL).
         CD3DX12_ROOT_PARAMETER rootParameters[GlobalRootSignatureParams::Count];
         rootParameters[GlobalRootSignatureParams::OutputViewSlot].InitAsDescriptorTable(1, &UAVDescriptor);
         //This configures one root parameter to be a descriptor table for that single UAV descriptor range we just created.
         rootParameters[GlobalRootSignatureParams::AccelerationStructureSlot].InitAsShaderResourceView(0);
-        //The second parameter is a single SRV (shader resource view) at register t0 (the °∞0°± is the shader register). This is for the raytracing acceleration structure.
+        //The second parameter is a single SRV (shader resource view) at register t0 (the ‚Äú0‚Äù is the shader register). This is for the raytracing acceleration structure.
         CD3DX12_ROOT_SIGNATURE_DESC globalRootSignatureDesc(ARRAYSIZE(rootParameters), rootParameters);
         SerializeAndCreateRaytracingRootSignature(globalRootSignatureDesc, &m_raytracingGlobalRootSignature);
     }
@@ -169,12 +169,39 @@ void D3D12RaytracingHelloWorld::CreateRootSignatures()
     }
 }
 
+
+/*
+* Background Info:
+Raytracing in DirectX 12
+Traditionally, real-time graphics pipelines use rasterization. However, raytracing is a technique where rays of light (or other rays for 
+physical simulation) are traced through a scene to create more realistic lighting, reflections, shadows, etc. Starting with Windows 10 
+October 2018 Update, Microsoft introduced DirectX Raytracing (DXR), built on top of DirectX 12. This requires specialized GPU hardware 
+(often referred to as ‚ÄúRT cores‚Äù or similar capabilities) plus new API interfaces to manage raytracing.
+
+The ID3D12Device5 Interface
+When DXR was introduced, new interfaces were added, such as ID3D12Device5. This interface extends the basic Direct3D 12 device so it can 
+create raytracing pipeline states, build acceleration structures (these are the data structures that help the GPU quickly figure out which 
+triangles or objects a ray hits), and handle other specialized operations needed for raytracing.
+
+The ID3D12GraphicsCommandList4 Interface
+DirectX 12 uses command lists to record rendering or compute commands. With raytracing, there is an extended interface to the command 
+list called ID3D12GraphicsCommandList4. This interface lets you:
+    Record the commands to build acceleration structures.
+    Dispatch rays (i.e., tell the GPU to launch rays for raytracing).
+    Use specialized barriers or transitions for raytracing resources.
+
+Without these raytracing-specific interfaces, you can‚Äôt use DXR features in your code.
+
+this function takes a standard Direct3D 12 device/command list and ‚Äúupgrades‚Äù them to the raytracing-enabled interfaces if the GPU and 
+driver support it. Without these upgraded interfaces, you cannot create raytracing pipelines, build acceleration structures, or launch 
+raytracing commands.
+*/
 // Create raytracing device and command list.
 void D3D12RaytracingHelloWorld::CreateRaytracingInterfaces()
 {
     auto device = m_deviceResources->GetD3DDevice();
     auto commandList = m_deviceResources->GetCommandList();
-
+    //Given this base DirectX 12 device, do you also support the ID3D12Device5 interface?
     ThrowIfFailed(device->QueryInterface(IID_PPV_ARGS(&m_dxrDevice)), L"Couldn't get DirectX Raytracing interface for the device.\n");
     ThrowIfFailed(commandList->QueryInterface(IID_PPV_ARGS(&m_dxrCommandList)), L"Couldn't get DirectX Raytracing interface for the command list.\n");
 }
@@ -198,6 +225,29 @@ void D3D12RaytracingHelloWorld::CreateLocalRootSignatureSubobjects(CD3DX12_STATE
     }
 }
 
+
+
+/*
+Background Info: 
+
+This function creates a Raytracing Pipeline State Object (RTPSO). In DirectX¬†12 raytracing, the RTPSO is an object that contains everything 
+your GPU needs to run raytracing. It ‚Äúbundles‚Äù together a set of shaders (code that runs on the GPU), resource-binding information (via root 
+signatures), and configuration settings (like how much data travels with each ray). When you later call DispatchRays(), the GPU uses the RTPSO 
+to know which shaders to run, how to link them, and what settings to use.
+
+The function achieves this by creating several ‚Äúsubobjects.‚Äù Think of each subobject as a piece of configuration (like a puzzle piece); 
+when all are assembled together, they form the complete RTPSO.
+
+
+Creating the Pipeline State Object:
+This function builds a Raytracing Pipeline State Object (RTPSO). The RTPSO is not just a collection of shaders; it‚Äôs an object that bundles together:
+    The compiled shader code (provided by the DXIL library subobject).
+    The grouping of shader entrypoints (via hit group subobjects, which specify which shader to run on a hit).
+    Configuration details (like shader payload size, attribute size, and the maximum ray recursion depth).
+    The binding information (global and local root signatures) that tells the GPU how to pass resources (textures, acceleration structures, constant buffers, etc.) to the shaders.
+*/
+
+
 // Create a raytracing pipeline state object (RTPSO).
 // An RTPSO represents a full set of shaders reachable by a DispatchRays() call,
 // with all configuration options resolved, such as local signatures and other state.
@@ -214,25 +264,38 @@ void D3D12RaytracingHelloWorld::CreateRaytracingPipelineStateObject()
     // 2 - Local root signature and association
     // 1 - Global root signature
     // 1 - Pipeline config
-    CD3DX12_STATE_OBJECT_DESC raytracingPipeline{ D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE };
 
+    //This line creates an instance of CD3DX12_STATE_OBJECT_DESC named raytracingPipeline. 
+    // The template parameter D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE specifies that we‚Äôre building a state object for raytracing.
+    CD3DX12_STATE_OBJECT_DESC raytracingPipeline{ D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE };
+    
 
     // DXIL library
     // This contains the shaders and their entrypoints for the state object.
     // Since shaders are not considered a subobject, they need to be passed in via DXIL library subobjects.
+    // This creates a subobject that holds the compiled shader code (DXIL is Microsoft‚Äôs ‚ÄúDirectX Intermediate Language‚Äù format).
     auto lib = raytracingPipeline.CreateSubobject<CD3DX12_DXIL_LIBRARY_SUBOBJECT>();
+    // This wraps the raw shader bytecode stored in g_pRaytracing with its size into a structure (D3D12_SHADER_BYTECODE libdxil)
     D3D12_SHADER_BYTECODE libdxil = CD3DX12_SHADER_BYTECODE((void *)g_pRaytracing, ARRAYSIZE(g_pRaytracing));
     lib->SetDXILLibrary(&libdxil);
     // Define which shader exports to surface from the library.
     // If no shader exports are defined for a DXIL library subobject, all shaders will be surfaced.
     // In this sample, this could be omitted for convenience since the sample uses all shaders in the library. 
+    //Inside the block, the calls to DefineExport(...) tell the system which shader entrypoints (names) should be 
+    // ‚Äúexported‚Äù (made visible) from this library. In this sample, these names represent:
     {
+        //The entry point that ‚Äúshoots‚Äù rays into the scene
         lib->DefineExport(c_raygenShaderName);
+        // Runs when a ray fails to hit any geometry
         lib->DefineExport(c_closestHitShaderName);
+        // Executes when a ray intersects geometry, determining how to shade the hit point.
         lib->DefineExport(c_missShaderName);
     }
     
     // Triangle hit group
+    // A hit group is a collection of shaders that run when a ray ‚Äúhits‚Äù something. In more complex scenes, you might have an intersection 
+    // shader (for non-triangle shapes) or an any-hit shader (to handle effects like transparency), but here we simply specify a closest 
+    // hit shader because our sample renders a simple triangle.
     // A hit group specifies closest hit, any hit and intersection shaders to be executed when a ray intersects the geometry's triangle/AABB.
     // In this sample, we only use triangle geometry with a closest hit shader, so others are not set.
     auto hitGroup = raytracingPipeline.CreateSubobject<CD3DX12_HIT_GROUP_SUBOBJECT>();
@@ -241,6 +304,9 @@ void D3D12RaytracingHelloWorld::CreateRaytracingPipelineStateObject()
     hitGroup->SetHitGroupType(D3D12_HIT_GROUP_TYPE_TRIANGLES);
     
     // Shader config
+    // The shader config tells the GPU how much ‚Äúextra‚Äù data each ray will carry and what kind of information it can expect when a ray 
+    // hits a surface. This is very important in raytracing since each ray can carry its own color, intensity, or other user-defined 
+    // information as it bounces in the scene.
     // Defines the maximum sizes in bytes for the ray payload and attribute structure.
     auto shaderConfig = raytracingPipeline.CreateSubobject<CD3DX12_RAYTRACING_SHADER_CONFIG_SUBOBJECT>();
     UINT payloadSize = 4 * sizeof(float);   // float4 color
@@ -295,6 +361,20 @@ void D3D12RaytracingHelloWorld::CreateRaytracingOutputResource()
     m_raytracingOutputResourceUAVGpuDescriptor = CD3DX12_GPU_DESCRIPTOR_HANDLE(m_descriptorHeap->GetGPUDescriptorHandleForHeapStart(), m_raytracingOutputResourceUAVDescriptorHeapIndex, m_descriptorSize);
 }
 
+
+/*
+In DirectX 12, resources (like textures, buffers, or acceleration structures) aren‚Äôt accessed directly by GPU shaders. Instead, the GPU sees them 
+through descriptors. A descriptor contains all the metadata the GPU needs to read or write a resource, such as the resource‚Äôs format, dimensions, 
+and layout.
+
+Descriptor Heaps are contiguous memory arrays that store these descriptors. A descriptor heap can hold many different types of views:
+    CBVs (Constant Buffer Views)
+    SRVs (Shader Resource Views)
+    UAVs (Unordered Access Views)
+    ...
+
+
+*/
 void D3D12RaytracingHelloWorld::CreateDescriptorHeap()
 {
     auto device = m_deviceResources->GetD3DDevice();
@@ -388,7 +468,7 @@ void D3D12RaytracingHelloWorld::BuildAccelerationStructures()
 
     // Allocate resources for acceleration structures.
     // Acceleration structures can only be placed in resources that are created in the default heap (or custom heap equivalent). 
-    // Default heap is OK since the application doesnít need CPU read/write access to them. 
+    // Default heap is OK since the application doesnÊä∞ need CPU read/write access to them. 
     // The resources that will contain acceleration structures must be created in the state D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, 
     // and must have resource flag D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS. The ALLOW_UNORDERED_ACCESS requirement simply acknowledges both: 
     //  - the system will be doing this type of access in its implementation of acceleration structure builds behind the scenes.
