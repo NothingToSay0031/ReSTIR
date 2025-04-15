@@ -1,5 +1,9 @@
 # CSCI-580 Project: Raytracing ReSTIR Implementation
 
+## Group Members
+
+HongweiJi_ToriDunn_AnZhang
+
 ## TODO List
 
 ### Preparation
