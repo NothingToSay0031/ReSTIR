@@ -40,6 +40,11 @@ RWTexture2D<float4> g_rtAOSurfaceAlbedo : register(u20);
 RWTexture2D<float4> g_outDebug1 : register(u21);
 RWTexture2D<float4> g_outDebug2 : register(u22);
 
+RWTexture2D<float4> g_ReservoirY : register(u23); // xyz: stored sample position, w: hasValue flag (1.0 if valid)
+RWTexture2D<float4> g_ReservoirWeight : register(u24); // x: W_Y, y: w_sum, z: M (number of samples), w: frame counter
+RWTexture2D<float4> g_LightSample : register(u25); // xyz: light color/intensity, w: not used
+RWTexture2D<float4> g_LightNormalArea : register(u26); // xyz: light normal, w: light area
+
 TextureCube<float4> g_texEnvironmentMap : register(t12);
 ConstantBuffer<PathtracerConstantBuffer> g_cb : register(b0);
 StructuredBuffer<PrimitiveMaterialBuffer> g_materials : register(t3);
@@ -136,6 +141,7 @@ bool TraceShadowRayAndReportIfHit(in float3 hitPosition, in float3 direction, in
 PathtracerRayPayload TraceRadianceRay(in Ray ray, in UINT currentRayRecursionDepth, float tMin = NEAR_PLANE, float tMax = FAR_PLANE, float bounceContribution = 1, bool cullNonOpaque = false)
 {
     PathtracerRayPayload rayPayload;
+    rayPayload.isFirstHit = currentRayRecursionDepth == 0; // First hit is always a camera ray.
     rayPayload.rayRecursionDepth = currentRayRecursionDepth + 1;
     rayPayload.radiance = 0;
     rayPayload.AOGBuffer.tHit = HitDistanceOnMiss;
@@ -144,7 +150,6 @@ PathtracerRayPayload TraceRadianceRay(in Ray ray, in UINT currentRayRecursionDep
     rayPayload.AOGBuffer.encodedNormal = 0;
     rayPayload.AOGBuffer._virtualHitPosition = 0;
     rayPayload.AOGBuffer._encodedNormal = 0; 
-
     if (currentRayRecursionDepth >= g_cb.maxRadianceRayRecursionDepth)
     {
         rayPayload.radiance = float3(133, 161, 179) / 255.0;
@@ -294,6 +299,30 @@ float3 SampleAreaLight(AreaLightData light, uint seed)
     return samplePoint;
 }
 
+float Luminance(float3 color)
+{
+    return dot(color, float3(0.299, 0.587, 0.114));
+}
+
+uint InitRNGSeed(uint pixelIndex, uint frameCount)
+{
+    return pixelIndex + frameCount * 719393;
+}
+
+void UpdateReservoir(uint2 DTid, float3 sampledPosition, float3 lightDir, float distanceSquared,
+                    float3 lightNormal, float lightArea, float3 lightColor, float wi, inout uint seed)
+{
+    g_ReservoirWeight[DTid].y += wi; // w_sum += w_i
+    g_ReservoirWeight[DTid].z += 1.0; // M += 1
+    float w_sum = g_ReservoirWeight[DTid].y;
+    if (w_sum > 0.0 && RandomFloat(seed) < (wi / w_sum))
+    {
+        g_ReservoirY[DTid] = float4(sampledPosition, 1.0); 
+        g_LightSample[DTid] = float4(lightColor, 1.0);
+        g_LightNormalArea[DTid] = float4(lightNormal, lightArea);
+    }
+}
+
 float3 Shade(
     inout PathtracerRayPayload rayPayload,
     in float3 N,
@@ -314,7 +343,63 @@ float3 Shade(
 
      // Direct illumination
     rayPayload.AOGBuffer.diffuseByte3 = NormalizedFloat3ToByte3(Kd);
-    if (!BxDF::IsBlack(material.Kd) || !BxDF::IsBlack(material.Ks))
+    if (rayPayload.isFirstHit && (!BxDF::IsBlack(material.Kd) || !BxDF::IsBlack(material.Ks)))
+    {
+        rayPayload.isFirstHit = false; // Reset the flag.
+        uint2 DTid = DispatchRaysIndex().xy;
+        g_ReservoirY[DTid] = float4(0, 0, 0, 0); // Reset the reservoir
+        g_ReservoirWeight[DTid] = float4(0, 0, 0, g_cb.frameCount); // Reset the reservoir weight
+        g_LightSample[DTid] = float4(0, 0, 0, 0); // Reset the light sample
+        g_LightNormalArea[DTid] = float4(0, 0, 0, 0); // Reset the light normal area
+        uint seed = InitRNGSeed(DTid.x + DTid.y * DispatchRaysDimensions().x, g_cb.frameCount);
+        const uint M = 32;
+        for (uint i = 0; i < M; i++)
+        {
+            uint lightIndex = seed % g_cb.numAreaLights;
+            AreaLightData areaLight = g_cb.areaLights[lightIndex];
+            float p = 1.0 / g_cb.numAreaLights;
+            float3 sampledPosition = SampleAreaLight(areaLight, seed);
+            float3 lightDir = normalize(sampledPosition - hitPosition);
+            float distanceSquared = dot(sampledPosition - hitPosition, sampledPosition - hitPosition);
+            float3 lightNormal = areaLight.normal;
+            float NdotL = max(0.0, dot(objectNormal, lightDir));
+            float LdotN = max(0.0, dot(lightNormal, -lightDir));
+            if (NdotL > 0.0 && LdotN > 0.0)
+            {
+                float3 radiance = areaLight.color * areaLight.intensity / distanceSquared;
+                float mi = Luminance(radiance) * NdotL;
+                float p_hat_Xi = NdotL; // Target pdf for Xi
+                float WXi = 1.0;
+                float wi = mi * p_hat_Xi * WXi / p;
+                UpdateReservoir(DTid, sampledPosition, lightDir, distanceSquared, lightNormal, areaLight.area, radiance, wi, seed);
+            }
+        }
+        if (g_ReservoirY[DTid].w > 0.0)
+        {
+            float3 sampledPosition = g_ReservoirY[DTid].xyz;
+            float3 lightDir = normalize(sampledPosition - hitPosition);
+            float distanceSquared = dot(sampledPosition - hitPosition, sampledPosition - hitPosition);
+            float3 lightColor = g_LightSample[DTid].xyz;
+            float NdotL = max(0.0, dot(objectNormal, lightDir));
+            float p_hat = NdotL * Luminance(lightColor) / distanceSquared;
+            bool isInShadow = TraceShadowRayAndReportIfHit(hitPosition, lightDir, N, rayPayload);
+            float M = g_ReservoirWeight[DTid].z;
+            float w_sum = g_ReservoirWeight[DTid].y;
+            if (!isInShadow && dot(-lightDir, g_LightNormalArea[DTid].xyz) > 0 && p_hat > 0.0 && M > 0.0)
+            {
+                g_ReservoirWeight[DTid].x = (w_sum / M) / p_hat; // Final weight W_Y = (w_sum / M) / p_hat(r.Y)
+            }
+            else
+            {
+                g_ReservoirWeight[DTid].x = 0.0;
+            }
+        }
+        else
+        {
+            g_ReservoirWeight[DTid].x = 0.0;
+        }
+    }
+    if (!rayPayload.isFirstHit && (!BxDF::IsBlack(material.Kd) || !BxDF::IsBlack(material.Ks)))
     {
         if (g_cb.numAreaLights > 0)
         {
@@ -461,7 +546,7 @@ void MyRayGenShader_RadianceRay()
         g_rtTextureSpaceMotionVector[DTid] = 1e3f;
         g_rtReprojectedNormalDepth[DTid] = 0;
     }
-
+    
     g_rtColor[DTid] = float4(rayPayload.radiance, 1);
 }
 

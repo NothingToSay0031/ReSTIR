@@ -103,6 +103,8 @@ struct PathtracerRayPayload
     UINT rayRecursionDepth;
     XMFLOAT3 radiance;              // TODO encode
     AmbientOcclusionGBuffer AOGBuffer;
+    BOOL isFirstHit;
+    XMFLOAT3 padding;
 };
 
 struct ShadowRayPayload
@@ -227,6 +229,9 @@ struct PathtracerConstantBuffer
     UINT  maxShadowRayRecursionDepth;
 
     AreaLightData areaLights[32];
+
+    UINT frameCount;
+    XMUINT3 padding;
 };
 
 struct RTAOConstantBuffer

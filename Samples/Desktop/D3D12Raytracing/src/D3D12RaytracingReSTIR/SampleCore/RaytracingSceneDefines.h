@@ -64,6 +64,10 @@ namespace GBufferResource {
         ReprojectedNormalDepth,
         Color,
         AOSurfaceAlbedo,
+				ReservoirY,
+				ReservoirWeight,
+				LightSample,
+				LightNormalArea,
 		Count
 	};
 }
