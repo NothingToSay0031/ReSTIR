@@ -666,7 +666,7 @@ void Pathtracer::UpdateConstantBuffer(Scene& scene)
     XMFLOAT3 color = scene.m_lightColor;
 
     // TODO: Generate Area lights in the scene more correctly.
-    GenerateAreaLights(4, center, 5.0f, color, 100.0f, 1.0f, 1.0f);
+    GenerateAreaLights(10, center, 5.0f, color, 100.0f, 1.0f, 1.0f);
     
     SetCamera(scene.Camera());
 

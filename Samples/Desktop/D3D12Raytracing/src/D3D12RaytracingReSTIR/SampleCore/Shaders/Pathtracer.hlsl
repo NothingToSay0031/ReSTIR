@@ -305,11 +305,6 @@ float Luminance(float3 color)
     return dot(color, float3(0.299, 0.587, 0.114));
 }
 
-uint InitRNGSeed(uint pixelIndex, uint frameCount)
-{
-    return pixelIndex + frameCount * 719393;
-}
-
 void UpdateReservoir(uint2 DTid, float3 sampledPosition, float3 lightDir, float distanceSquared,
                     float3 lightNormal, float lightArea, float3 lightColor, float wi, inout uint seed)
 {
@@ -352,46 +347,6 @@ float3 Shade(
      // Direct illumination
     rayPayload.AOGBuffer.diffuseByte3 = NormalizedFloat3ToByte3(Kd);
     
-    // Disable WRS(Weighted Reservoir Sampling), for testing purposes.
-    if (0 && rayPayload.isFirstHit && (!BxDF::IsBlack(material.Kd) || !BxDF::IsBlack(material.Ks)))
-    {
-        rayPayload.isFirstHit = false; // Reset the flag.
-        if (g_cb.numAreaLights > 0)
-        {
-            // Sample a random area light
-            uint2 DTid = DispatchRaysIndex().xy;
-            uint seed = InitRNGSeed(DTid.x + DTid.y * DispatchRaysDimensions().x, g_cb.frameCount);
-            uint lightIndex = seed % g_cb.numAreaLights;
-            AreaLightData areaLight = g_cb.areaLights[lightIndex];
-        
-            float3 sampledPosition = SampleAreaLight(areaLight, seed);
-            float3 lightDir = normalize(sampledPosition - hitPosition);
-            float distanceSquared = dot(sampledPosition - hitPosition, sampledPosition - hitPosition);
-            float3 lightNormal = areaLight.normal;
-        
-            bool isInShadow = TraceShadowRayAndReportIfHit(hitPosition, lightDir, N, rayPayload);
-            float NdotL = max(0.0, dot(objectNormal, lightDir));
-            float LdotN = max(0.0, dot(lightNormal, -lightDir));
-            if (!isInShadow && NdotL > 0.0 && LdotN > 0.0)
-            {
-                float3 radiance = areaLight.color * areaLight.intensity / distanceSquared;
-            
-                float3 contribution = BxDF::DirectLighting::Shade(
-                    material.type,
-                    Kd,
-                    Ks,
-                    radiance,
-                    false,
-                    roughness,
-                    N,
-                    V,
-                    lightDir) * abs(dot(lightDir, lightNormal)) * areaLight.area;
-                
-                L += contribution * g_cb.numAreaLights;
-            }
-        }
-    }
-    
     // Weighted Reservoir Sampling
     if (rayPayload.isFirstHit && (!BxDF::IsBlack(material.Kd) || !BxDF::IsBlack(material.Ks)))
     {
@@ -401,11 +356,12 @@ float3 Shade(
         g_ReservoirWeight[DTid] = float4(0, 0, 0, g_cb.frameCount); // Reset the reservoir weight
         g_LightSample[DTid] = float4(0, 0, 0, 0); // Reset the light sample
         g_LightNormalArea[DTid] = float4(0, 0, 0, 0); // Reset the light normal area
-        uint seed = InitRNGSeed(DTid.x + DTid.y * DispatchRaysDimensions().x, g_cb.frameCount);
+        uint pixelIndex = DTid.x + DTid.y * DispatchRaysDimensions().x;
+        uint seed = Hash(pixelIndex * 9781 + g_cb.frameCount * 6271); 
         const uint M = 32;
         for (uint i = 0; i < M; i++)
         {
-            uint lightIndex = seed % g_cb.numAreaLights;
+            uint lightIndex = asuint(hitPosition.x * 1234.5678 + hitPosition.y * 5678.1234) % g_cb.numAreaLights;
             AreaLightData areaLight = g_cb.areaLights[lightIndex];
             float p = 1.0 / g_cb.numAreaLights;
             float3 sampledPosition = SampleAreaLight(areaLight, seed);
@@ -418,7 +374,7 @@ float3 Shade(
             {
                 float3 radiance = areaLight.color * areaLight.intensity / distanceSquared;
                 float eval = EvalP(lightDir, Kd, radiance, objectNormal);
-                float wi = eval / p; // p = 1.0 / numLights
+                float wi = eval / p;
                 UpdateReservoir(DTid, sampledPosition, lightDir, distanceSquared, lightNormal, areaLight.area, radiance, wi, seed);
             }
         }
@@ -476,8 +432,9 @@ float3 Shade(
             float3 lightNormal = areaLight.normal;
         
             bool isInShadow = TraceShadowRayAndReportIfHit(hitPosition, lightDir, N, rayPayload);
-        
-            if (!isInShadow && dot(lightDir, lightNormal) > 0)
+            float NdotL = max(0.0, dot(objectNormal, lightDir));
+            float LdotN = max(0.0, dot(lightNormal, -lightDir));
+            if (!isInShadow && NdotL > 0.0 && LdotN > 0.0)
             {
                 float3 radiance = areaLight.color * areaLight.intensity / distanceSquared;
             
