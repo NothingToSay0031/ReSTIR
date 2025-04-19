@@ -81,7 +81,8 @@ bool TraceShadowRayAndReportIfHit(inout float tHit, in Ray ray, in UINT currentR
     RayDesc rayDesc;
     rayDesc.Origin = ray.origin;
     rayDesc.Direction = ray.direction;
-    rayDesc.TMin = 0.0;
+    const float rayBias = 1e-4f;
+    rayDesc.TMin = rayBias;
 	rayDesc.TMax = TMax;
 
     // Initialize shadow ray payload.
@@ -322,6 +323,13 @@ void UpdateReservoir(uint2 DTid, float3 sampledPosition, float3 lightDir, float 
         g_LightNormalArea[DTid] = float4(lightNormal, lightArea);
     }
 }
+float EvalP(float3 toLight, float3 diffuse, float3 radiance, float3 normal)
+{
+    float NdotL = max(0.0, dot(toLight, normal));
+    float3 brdf = diffuse * (1.0f / 3.14159265f); // Lambertian
+    float3 color = brdf * radiance * NdotL;
+    return length(color); // scalar pdf target
+}
 
 float3 Shade(
     inout PathtracerRayPayload rayPayload,
@@ -343,6 +351,48 @@ float3 Shade(
 
      // Direct illumination
     rayPayload.AOGBuffer.diffuseByte3 = NormalizedFloat3ToByte3(Kd);
+    
+    // Disable WRS(Weighted Reservoir Sampling), for testing purposes.
+    if (0 && rayPayload.isFirstHit && (!BxDF::IsBlack(material.Kd) || !BxDF::IsBlack(material.Ks)))
+    {
+        rayPayload.isFirstHit = false; // Reset the flag.
+        if (g_cb.numAreaLights > 0)
+        {
+            // Sample a random area light
+            uint2 DTid = DispatchRaysIndex().xy;
+            uint seed = InitRNGSeed(DTid.x + DTid.y * DispatchRaysDimensions().x, g_cb.frameCount);
+            uint lightIndex = seed % g_cb.numAreaLights;
+            AreaLightData areaLight = g_cb.areaLights[lightIndex];
+        
+            float3 sampledPosition = SampleAreaLight(areaLight, seed);
+            float3 lightDir = normalize(sampledPosition - hitPosition);
+            float distanceSquared = dot(sampledPosition - hitPosition, sampledPosition - hitPosition);
+            float3 lightNormal = areaLight.normal;
+        
+            bool isInShadow = TraceShadowRayAndReportIfHit(hitPosition, lightDir, N, rayPayload);
+            float NdotL = max(0.0, dot(objectNormal, lightDir));
+            float LdotN = max(0.0, dot(lightNormal, -lightDir));
+            if (!isInShadow && NdotL > 0.0 && LdotN > 0.0)
+            {
+                float3 radiance = areaLight.color * areaLight.intensity / distanceSquared;
+            
+                float3 contribution = BxDF::DirectLighting::Shade(
+                    material.type,
+                    Kd,
+                    Ks,
+                    radiance,
+                    false,
+                    roughness,
+                    N,
+                    V,
+                    lightDir) * abs(dot(lightDir, lightNormal)) * areaLight.area;
+                
+                L += contribution * g_cb.numAreaLights;
+            }
+        }
+    }
+    
+    // Weighted Reservoir Sampling
     if (rayPayload.isFirstHit && (!BxDF::IsBlack(material.Kd) || !BxDF::IsBlack(material.Ks)))
     {
         rayPayload.isFirstHit = false; // Reset the flag.
@@ -367,10 +417,8 @@ float3 Shade(
             if (NdotL > 0.0 && LdotN > 0.0)
             {
                 float3 radiance = areaLight.color * areaLight.intensity / distanceSquared;
-                float mi = Luminance(radiance) * NdotL;
-                float p_hat_Xi = NdotL; // Target pdf for Xi
-                float WXi = 1.0;
-                float wi = mi * p_hat_Xi * WXi / p;
+                float eval = EvalP(lightDir, Kd, radiance, objectNormal);
+                float wi = eval / p; // p = 1.0 / numLights
                 UpdateReservoir(DTid, sampledPosition, lightDir, distanceSquared, lightNormal, areaLight.area, radiance, wi, seed);
             }
         }
@@ -381,13 +429,24 @@ float3 Shade(
             float distanceSquared = dot(sampledPosition - hitPosition, sampledPosition - hitPosition);
             float3 lightColor = g_LightSample[DTid].xyz;
             float NdotL = max(0.0, dot(objectNormal, lightDir));
-            float p_hat = NdotL * Luminance(lightColor) / distanceSquared;
+            float p_hat = EvalP(lightDir, Kd, lightColor, objectNormal);
             bool isInShadow = TraceShadowRayAndReportIfHit(hitPosition, lightDir, N, rayPayload);
             float M = g_ReservoirWeight[DTid].z;
             float w_sum = g_ReservoirWeight[DTid].y;
             if (!isInShadow && dot(-lightDir, g_LightNormalArea[DTid].xyz) > 0 && p_hat > 0.0 && M > 0.0)
             {
                 g_ReservoirWeight[DTid].x = (w_sum / M) / p_hat; // Final weight W_Y = (w_sum / M) / p_hat(r.Y)
+                float3 contribution = BxDF::DirectLighting::Shade(
+                    material.type,
+                    Kd,
+                    Ks,
+                    lightColor,
+                    false,
+                    roughness,
+                    N,
+                    V,
+                    lightDir);
+                L += contribution * g_ReservoirWeight[DTid].x;
             }
             else
             {
@@ -399,7 +458,9 @@ float3 Shade(
             g_ReservoirWeight[DTid].x = 0.0;
         }
     }
-    if (!rayPayload.isFirstHit && (!BxDF::IsBlack(material.Kd) || !BxDF::IsBlack(material.Ks)))
+    
+    // Disable indirect lighting because sample lights cause fireflies. TOOD: Implement ReSTIR GI.
+    if (0 && !rayPayload.isFirstHit && (!BxDF::IsBlack(material.Kd) || !BxDF::IsBlack(material.Ks)))
     {
         if (g_cb.numAreaLights > 0)
         {

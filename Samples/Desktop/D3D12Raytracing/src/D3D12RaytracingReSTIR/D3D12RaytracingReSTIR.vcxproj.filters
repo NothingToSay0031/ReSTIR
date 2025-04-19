@@ -141,6 +141,9 @@
     <ClInclude Include="D3D12RaytracingReSTIR.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="Reuse.h">
+      <Filter>Source Files\SampleCore</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -223,6 +226,9 @@
     </ClCompile>
     <ClCompile Include="D3D12RaytracingReSTIR.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Reuse.cpp">
+      <Filter>Source Files\SampleCore</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

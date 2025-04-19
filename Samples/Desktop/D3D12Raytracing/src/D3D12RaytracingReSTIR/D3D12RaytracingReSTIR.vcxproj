@@ -183,6 +183,7 @@
     </CustomBuild>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Reuse.h" />
     <ClInclude Include="SampleCore\Composition.h" />
     <ClInclude Include="SampleCore\DirectXRaytracingHelper.h" />
     <ClInclude Include="SampleCore\GpuKernels.h" />
@@ -218,6 +219,7 @@
     <ClInclude Include="SampleCore\util\Win32Application.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Reuse.cpp" />
     <ClCompile Include="SampleCore\Composition.cpp" />
     <ClCompile Include="D3D12RaytracingReSTIR.cpp" />
     <ClCompile Include="Main.cpp" />
