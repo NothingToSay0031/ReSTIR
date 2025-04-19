@@ -21,16 +21,16 @@ HongweiJi_ToriDunn_AnZhang
     - [x] Add support for sampling from Area Lights
     - This will serve as the baseline for comparison with ReSTIR
 ### Implement ReSTIR
-- [ ] Integrate ReSTIR into the path tracer mode
-- [ ] Use Area Lights as candidate light sources
-- [ ] Implement core logic: sample reuse, importance sampling, etc.
-- [ ] Compare results visually and performance-wise with the baseline
+- [ ] Integrate ReSTIR into the path tracer mode (WIP)
+    - [x] Weighted Reservoir Sampling.
+    - [ ] Spatial Reuse Pixel Shader.
+    - [ ] Temporal Reuse Pixel Shader.
+    - [ ] Shade Pixel.
 ### Test Variants & Tuning
-- [ ] Experiment with different ReSTIR parameters (e.g. reservoir size, spatial reuse radius, etc.)
-- [ ] Compare performance and quality across different settings
+- [ ] Experiment with different ReSTIR parameters (e.g. reservoir size.)
+- [ ] Compare performance and quality across different settings and baselines
 - [ ] Modify the default scene (optional)
     - Add or adjust geometry from https://github.com/wallisc/DuosRenderer/tree/DXRRenderer/Assets
-- [ ] Create setups to better showcase differences between techniques
 
 # DirectX-Graphics-Samples
 This repo contains the DirectX 12 Graphics samples that demonstrate how to build graphics intensive applications for Windows 10.
