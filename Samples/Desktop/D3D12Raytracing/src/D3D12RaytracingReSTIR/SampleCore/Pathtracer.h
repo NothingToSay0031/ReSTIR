@@ -20,6 +20,7 @@
 #include "GpuKernels.h"
 #include "EngineTuning.h"
 #include "Scene.h"
+#include "Reuse.h"
 
 namespace Pathtracer_Args
 {
@@ -60,6 +61,8 @@ private:
     void BuildShaderTables(Scene& scene);
     void DispatchRays(ID3D12Resource* rayGenShaderTable, UINT width = 0, UINT height = 0);
     void DownsampleGBuffer();
+    void SpatialReuse();
+    void TemporalReuse();
 
     std::shared_ptr<DX::DeviceResources> m_deviceResources;
     std::shared_ptr<DX::DescriptorHeap> m_cbvSrvUavHeap;
@@ -99,6 +102,8 @@ private:
 
     GpuKernels::CalculatePartialDerivatives  m_calculatePartialDerivativesKernel;
     GpuKernels::DownsampleGBufferDataBilateralFilter m_downsampleGBufferBilateralFilterKernel;
+    Reuse::SpatialReuse m_spatialReuse;
+    Reuse::TemporalReuse m_temporalReuse;
 
     bool m_isRecreateRaytracingResourcesRequested = false;
 };

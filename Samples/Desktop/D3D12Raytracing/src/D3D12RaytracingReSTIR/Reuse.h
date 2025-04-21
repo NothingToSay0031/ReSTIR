@@ -1,7 +1,21 @@
 #pragma once
 
 namespace Reuse {
+class SpatialReuse {
+ public:
+  void Initialize(ID3D12Device5* device, UINT frameCount,
+                  UINT numCallsPerFrame = 1);
+  void Run(ID3D12GraphicsCommandList4* commandList,
+           ID3D12DescriptorHeap* descriptorHeap, UINT width, UINT height,
+           D3D12_GPU_DESCRIPTOR_HANDLE inputResourceHandle,
+           D3D12_GPU_DESCRIPTOR_HANDLE outputResourceHandle);
 
+ private:
+  ComPtr<ID3D12RootSignature> m_rootSignature;
+  ComPtr<ID3D12PipelineState> m_pipelineStateObject;
+  ConstantBuffer<AtrousWaveletTransformFilterConstantBuffer> m_CB;
+  UINT m_CBinstanceID = 0;
+};
 class TemporalReuse {
  public:
   void Initialize(ID3D12Device5* device, UINT frameCount,
@@ -32,31 +46,4 @@ class TemporalReuse {
   UINT m_CBinstanceID = 0;
 };
 
-class SpatialReuse {
- public:
-  enum FilterType {
-    Filter2x2FloatR = 0,
-    Filter2x2UintR,
-    Filter2x2FloatRG,
-    Count
-  };
-
-  void Initialize(ID3D12Device5* device, UINT frameCount,
-                  UINT numCallsPerFrame = 1);
-  void Run(ID3D12GraphicsCommandList4* commandList, UINT width, UINT height,
-           FilterType type, ID3D12DescriptorHeap* descriptorHeap,
-           D3D12_GPU_DESCRIPTOR_HANDLE inputResourceHandle,
-           D3D12_GPU_DESCRIPTOR_HANDLE inputLowResNormalResourceHandle,
-           D3D12_GPU_DESCRIPTOR_HANDLE inputHiResNormalResourceHandle,
-           D3D12_GPU_DESCRIPTOR_HANDLE
-               inputHiResPartialDistanceDerivativeResourceHandle,
-           D3D12_GPU_DESCRIPTOR_HANDLE outputResourceHandle);
-
- private:
-  ComPtr<ID3D12RootSignature> m_rootSignature;
-  ComPtr<ID3D12PipelineState> m_pipelineStateObjects[FilterType::Count];
-  ConstantBuffer<DownAndUpsampleFilterConstantBuffer> m_CB;
-  UINT m_CBinstanceID = 0;
-};
-
-}  // namespace GpuKernels
+}  // namespace Reuse

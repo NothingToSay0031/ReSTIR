@@ -927,6 +927,108 @@ void Pathtracer::CreateTextureResources()
     }
 }
 
+void Pathtracer::SpatialReuse() {
+  auto commandList = m_deviceResources->GetCommandList();
+  auto resourceStateTracker = m_deviceResources->GetGpuResourceStateTracker();
+  ScopedTimer _prof(L"SpatialReuse", commandList);
+  resourceStateTracker->FlushResourceBarriers();
+  m_spatialReuse.Run(
+      commandList, m_cbvSrvUavHeap->GetHeap(), m_raytracingWidth,
+      m_raytracingHeight,
+      m_GBufferResources[GBufferResource::Depth].gpuDescriptorReadAccess,
+      m_GBufferResources[GBufferResource::PartialDepthDerivatives]
+          .gpuDescriptorWriteAccess);
+  resourceStateTracker->TransitionResource(
+      &m_GBufferResources[GBufferResource::PartialDepthDerivatives],
+      D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+}
+
+void Pathtracer::TemporalReuse() {
+  auto commandList = m_deviceResources->GetCommandList();
+  auto resourceStateTracker = m_deviceResources->GetGpuResourceStateTracker();
+  ScopedTimer _prof(L"TemporalReuse", commandList);
+
+  // Transition all output resources to UAV state.
+  {
+    resourceStateTracker->TransitionResource(
+        &m_GBufferQuarterResResources[GBufferResource::HitPosition],
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    resourceStateTracker->TransitionResource(
+        &m_GBufferQuarterResResources[GBufferResource::PartialDepthDerivatives],
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    resourceStateTracker->TransitionResource(
+        &m_GBufferQuarterResResources[GBufferResource::MotionVector],
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    resourceStateTracker->TransitionResource(
+        &m_GBufferQuarterResResources[GBufferResource::ReprojectedNormalDepth],
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    resourceStateTracker->TransitionResource(
+        &m_GBufferQuarterResResources[GBufferResource::Depth],
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    resourceStateTracker->TransitionResource(
+        &m_GBufferQuarterResResources[GBufferResource::SurfaceNormalDepth],
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    resourceStateTracker->TransitionResource(
+        &m_GBufferQuarterResResources[GBufferResource::AOSurfaceAlbedo],
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+  }
+
+  resourceStateTracker->FlushResourceBarriers();
+  m_temporalReuse.Run(
+      commandList, m_raytracingWidth, m_raytracingHeight,
+      m_cbvSrvUavHeap->GetHeap(),
+      m_GBufferResources[GBufferResource::SurfaceNormalDepth]
+          .gpuDescriptorReadAccess,
+      m_GBufferResources[GBufferResource::HitPosition].gpuDescriptorReadAccess,
+      m_GBufferResources[GBufferResource::PartialDepthDerivatives]
+          .gpuDescriptorReadAccess,
+      m_GBufferResources[GBufferResource::MotionVector].gpuDescriptorReadAccess,
+      m_GBufferResources[GBufferResource::ReprojectedNormalDepth]
+          .gpuDescriptorReadAccess,
+      m_GBufferResources[GBufferResource::Depth].gpuDescriptorReadAccess,
+      m_GBufferResources[GBufferResource::AOSurfaceAlbedo]
+          .gpuDescriptorReadAccess,
+      m_GBufferQuarterResResources[GBufferResource::SurfaceNormalDepth]
+          .gpuDescriptorWriteAccess,
+      m_GBufferQuarterResResources[GBufferResource::HitPosition]
+          .gpuDescriptorWriteAccess,
+      m_GBufferQuarterResResources[GBufferResource::PartialDepthDerivatives]
+          .gpuDescriptorWriteAccess,
+      m_GBufferQuarterResResources[GBufferResource::MotionVector]
+          .gpuDescriptorWriteAccess,
+      m_GBufferQuarterResResources[GBufferResource::ReprojectedNormalDepth]
+          .gpuDescriptorWriteAccess,
+      m_GBufferQuarterResResources[GBufferResource::Depth]
+          .gpuDescriptorWriteAccess,
+      m_GBufferQuarterResResources[GBufferResource::AOSurfaceAlbedo]
+          .gpuDescriptorWriteAccess);
+
+  // Transition GBuffer resources to shader resource state.
+  {
+    resourceStateTracker->TransitionResource(
+        &m_GBufferQuarterResResources[GBufferResource::HitPosition],
+        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    resourceStateTracker->TransitionResource(
+        &m_GBufferQuarterResResources[GBufferResource::SurfaceNormalDepth],
+        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    resourceStateTracker->TransitionResource(
+        &m_GBufferQuarterResResources[GBufferResource::PartialDepthDerivatives],
+        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    resourceStateTracker->TransitionResource(
+        &m_GBufferQuarterResResources[GBufferResource::MotionVector],
+        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    resourceStateTracker->TransitionResource(
+        &m_GBufferQuarterResResources[GBufferResource::ReprojectedNormalDepth],
+        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    resourceStateTracker->TransitionResource(
+        &m_GBufferQuarterResResources[GBufferResource::Depth],
+        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    resourceStateTracker->TransitionResource(
+        &m_GBufferQuarterResResources[GBufferResource::AOSurfaceAlbedo],
+        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+  }
+}
+
 void Pathtracer::DownsampleGBuffer()
 {
     auto commandList = m_deviceResources->GetCommandList();
