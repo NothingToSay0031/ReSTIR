@@ -2,7 +2,7 @@
 
 namespace Reuse {
 
-class SpatialReuse {
+class TemporalReuse {
  public:
   void Initialize(ID3D12Device5* device, UINT frameCount,
                   UINT numCallsPerFrame = 1);
@@ -32,7 +32,7 @@ class SpatialReuse {
   UINT m_CBinstanceID = 0;
 };
 
-class TemporalReuse {
+class SpatialReuse {
  public:
   enum FilterType {
     Filter2x2FloatR = 0,
