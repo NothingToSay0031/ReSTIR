@@ -24,35 +24,58 @@ namespace Reuse {
 namespace RootSignature {
 namespace SpatialReuse {
 namespace Slot {
-enum Enum { Output = 0, Input, ConstantBuffer, Count };
+enum Enum {
+  GBufferPosition = 0,
+  GBufferNormalDepth,
+  AOSurfaceAlbedo,
+  ReservoirYIn,
+  ReservoirWeightIn,
+  LightSampleIn,
+  LightNormalAreaIn,
+  ReservoirYOut,
+  ReservoirWeightOut,
+  LightSampleOut,
+  LightNormalAreaOut,
+  ConstantBuffer,
+  Count
+};
 }
 }  // namespace SpatialReuse
 }  // namespace RootSignature
 
-void SpatialReuse::Initialize(ID3D12Device5* device,
-                                             UINT frameCount,
-                                             UINT numCallsPerFrame) {
+void SpatialReuse::Initialize(ID3D12Device5* device, UINT frameCount,
+                              UINT numCallsPerFrame) {
   // Create root signature.
   {
     using namespace RootSignature::SpatialReuse;
 
     CD3DX12_DESCRIPTOR_RANGE ranges[Slot::Count];
-    ranges[Slot::Input].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
-                             0);  // input values
-    ranges[Slot::Output].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1,
-                              0);  // output filtered values
+    ranges[Slot::GBufferPosition].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+    ranges[Slot::GBufferNormalDepth].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
+                                          1);
+    ranges[Slot::AOSurfaceAlbedo].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2);
+    ranges[Slot::ReservoirYIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3);
+    ranges[Slot::ReservoirWeightIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 4);
+    ranges[Slot::LightSampleIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 5);
+    ranges[Slot::LightNormalAreaIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 6);
+    ranges[Slot::ReservoirYOut].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
+    ranges[Slot::ReservoirWeightOut].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1,
+                                          1);
+    ranges[Slot::LightSampleOut].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 2);
+    ranges[Slot::LightNormalAreaOut].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1,
+                                          3);
 
     CD3DX12_ROOT_PARAMETER rootParameters[Slot::Count];
-    rootParameters[Slot::Input].InitAsDescriptorTable(1, &ranges[Slot::Input]);
-    rootParameters[Slot::Output].InitAsDescriptorTable(1,
-                                                       &ranges[Slot::Output]);
+    for (int i = 0; i < Slot::Count - 1; ++i) {
+      rootParameters[i].InitAsDescriptorTable(1, &ranges[i]);
+    }
+
     rootParameters[Slot::ConstantBuffer].InitAsConstantBufferView(0);
 
     CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc(ARRAYSIZE(rootParameters),
                                                   rootParameters);
-    SerializeAndCreateRootSignature(
-        device, rootSignatureDesc, &m_rootSignature,
-        L"Compute root signature: SpatialReuse");
+    SerializeAndCreateRootSignature(device, rootSignatureDesc, &m_rootSignature,
+                                    L"Compute root signature: SpatialReuse");
   }
 
   // Create compute pipeline state.
@@ -63,39 +86,36 @@ void SpatialReuse::Initialize(ID3D12Device5* device,
         static_cast<const void*>(g_pSpatialCS), ARRAYSIZE(g_pSpatialCS));
     ThrowIfFailed(device->CreateComputePipelineState(
         &descComputePSO, IID_PPV_ARGS(&m_pipelineStateObject)));
-    m_pipelineStateObject->SetName(
-        L"Pipeline state object: SpatialReuse");
+    m_pipelineStateObject->SetName(L"Pipeline state object: SpatialReuse");
   }
 
-  // Create shader resources.
+  // Create shader resources
   {
     m_CB.Create(device, frameCount * numCallsPerFrame,
                 L"Constant Buffer: SpatialReuse");
   }
 }
 
-void SpatialReuse::Run(
-    ID3D12GraphicsCommandList4* commandList,
-    ID3D12DescriptorHeap* descriptorHeap, UINT width, UINT height,
-    D3D12_GPU_DESCRIPTOR_HANDLE inputValuesResourceHandle,
-    D3D12_GPU_DESCRIPTOR_HANDLE outputResourceHandle) {
+void SpatialReuse::Run(ID3D12GraphicsCommandList4* commandList,
+                       ID3D12DescriptorHeap* descriptorHeap, UINT width,
+                       UINT height,
+                       D3D12_GPU_DESCRIPTOR_HANDLE gBufferPositionHandle,
+                       D3D12_GPU_DESCRIPTOR_HANDLE gBufferNormalDepthHandle,
+                       D3D12_GPU_DESCRIPTOR_HANDLE aoSurfaceAlbedoHandle,
+                       D3D12_GPU_DESCRIPTOR_HANDLE reservoirYInHandle,
+                       D3D12_GPU_DESCRIPTOR_HANDLE reservoirWeightInHandle,
+                       D3D12_GPU_DESCRIPTOR_HANDLE lightSampleInHandle,
+                       D3D12_GPU_DESCRIPTOR_HANDLE lightNormalAreaInHandle,
+                       D3D12_GPU_DESCRIPTOR_HANDLE reservoirYOutHandle,
+                       D3D12_GPU_DESCRIPTOR_HANDLE reservoirWeightOutHandle,
+                       D3D12_GPU_DESCRIPTOR_HANDLE lightSampleOutHandle,
+                       D3D12_GPU_DESCRIPTOR_HANDLE lightNormalAreaOutHandle) {
   using namespace RootSignature::SpatialReuse;
   using namespace DefaultComputeShaderParams;
 
   ScopedTimer _prof(L"SpatialReuse", commandList);
 
-  // Set pipeline state.
-  {
-    commandList->SetDescriptorHeaps(1, &descriptorHeap);
-    commandList->SetComputeRootSignature(m_rootSignature.Get());
-    commandList->SetPipelineState(m_pipelineStateObject.Get());
-    commandList->SetComputeRootDescriptorTable(Slot::Input,
-                                               inputValuesResourceHandle);
-    commandList->SetComputeRootDescriptorTable(Slot::Output,
-                                               outputResourceHandle);
-  }
-
-  // Update the Constant Buffer.
+ // Update the Constant Buffer.
   {
     m_CB->textureDim = XMUINT2(width, height);
     m_CBinstanceID = (m_CBinstanceID + 1) % m_CB.NumInstances();
@@ -104,6 +124,33 @@ void SpatialReuse::Run(
         Slot::ConstantBuffer, m_CB.GpuVirtualAddress(m_CBinstanceID));
   }
 
+  // Set pipeline state.
+  {
+    commandList->SetDescriptorHeaps(1, &descriptorHeap);
+    commandList->SetComputeRootSignature(m_rootSignature.Get());
+    commandList->SetComputeRootDescriptorTable(Slot::GBufferPosition,
+                                               gBufferPositionHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::GBufferNormalDepth,
+                                               gBufferNormalDepthHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::AOSurfaceAlbedo,
+                                               aoSurfaceAlbedoHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::ReservoirYIn,
+                                               reservoirYInHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::ReservoirWeightIn,
+                                               reservoirWeightInHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::LightSampleIn,
+                                               lightSampleInHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::LightNormalAreaIn,
+                                               lightNormalAreaInHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::ReservoirYOut,
+                                               reservoirYOutHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::ReservoirWeightOut,
+                                               reservoirWeightOutHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::LightSampleOut,
+                                               lightSampleOutHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::LightNormalAreaOut,
+                                               lightNormalAreaOutHandle);
+  }
   // Dispatch.
   {
     XMUINT2 groupSize(CeilDivide(width, ThreadGroup::Width),

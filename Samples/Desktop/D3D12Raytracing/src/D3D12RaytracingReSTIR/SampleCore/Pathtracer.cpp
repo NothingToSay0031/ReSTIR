@@ -932,12 +932,31 @@ void Pathtracer::SpatialReuse() {
   auto resourceStateTracker = m_deviceResources->GetGpuResourceStateTracker();
   ScopedTimer _prof(L"SpatialReuse", commandList);
   resourceStateTracker->FlushResourceBarriers();
-  m_spatialReuse.Run(
-      commandList, m_cbvSrvUavHeap->GetHeap(), m_raytracingWidth,
-      m_raytracingHeight,
-      m_GBufferResources[GBufferResource::Depth].gpuDescriptorReadAccess,
-      m_GBufferResources[GBufferResource::PartialDepthDerivatives]
-          .gpuDescriptorWriteAccess);
+  m_spatialReuse.Run(commandList, m_cbvSrvUavHeap->GetHeap(), m_raytracingWidth,
+                     m_raytracingHeight,
+                     m_GBufferResources[GBufferResource::HitPosition]
+                         .gpuDescriptorReadAccess,  // gBufferPositionHandle
+                     m_GBufferResources[GBufferResource::SurfaceNormalDepth]
+                         .gpuDescriptorReadAccess,  // gBufferNormalDepthHandle
+                     m_GBufferResources[GBufferResource::AOSurfaceAlbedo]
+                         .gpuDescriptorReadAccess,  // aoSurfaceAlbedoHandle
+                     m_GBufferResources[GBufferResource::ReservoirY]
+                         .gpuDescriptorReadAccess,  // reservoirYInHandle
+                     m_GBufferResources[GBufferResource::ReservoirWeight]
+                         .gpuDescriptorReadAccess,  // reservoirWeightInHandle
+                     m_GBufferResources[GBufferResource::LightSample]
+                         .gpuDescriptorReadAccess,  // lightSampleInHandle
+                     m_GBufferResources[GBufferResource::LightNormalArea]
+                         .gpuDescriptorReadAccess,  // lightNormalAreaInHandle
+                     m_GBufferResources[GBufferResource::ReservoirY]
+                         .gpuDescriptorWriteAccess,  // reservoirYOutHandle
+                     m_GBufferResources[GBufferResource::ReservoirWeight]
+                         .gpuDescriptorWriteAccess,  // reservoirWeightOutHandle
+                     m_GBufferResources[GBufferResource::LightSample]
+                         .gpuDescriptorWriteAccess,  // lightSampleOutHandle
+                     m_GBufferResources[GBufferResource::LightNormalArea]
+                         .gpuDescriptorWriteAccess  // lightNormalAreaOutHandle
+  );
   resourceStateTracker->TransitionResource(
       &m_GBufferResources[GBufferResource::PartialDepthDerivatives],
       D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);

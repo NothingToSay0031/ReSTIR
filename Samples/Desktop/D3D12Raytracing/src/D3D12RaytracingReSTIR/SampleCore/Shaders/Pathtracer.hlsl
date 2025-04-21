@@ -300,11 +300,6 @@ float3 SampleAreaLight(AreaLightData light, inout uint seed)
     return samplePoint;
 }
 
-float Luminance(float3 color)
-{
-    return dot(color, float3(0.299, 0.587, 0.114));
-}
-
 void UpdateReservoir(uint2 DTid, float3 sampledPosition, float3 lightDir, float distanceSquared,
                     float3 lightNormal, float lightArea, float3 lightColor, float wi, inout uint seed)
 {
