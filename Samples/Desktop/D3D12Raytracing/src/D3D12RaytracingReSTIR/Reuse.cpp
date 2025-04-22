@@ -265,12 +265,11 @@ void TemporalReuse::Run(ID3D12GraphicsCommandList4* commandList, UINT width,
                         D3D12_GPU_DESCRIPTOR_HANDLE reservoirWeightOutHandle,
                         D3D12_GPU_DESCRIPTOR_HANDLE lightSampleOutHandle,
                         D3D12_GPU_DESCRIPTOR_HANDLE lightNormalAreaOutHandle,
-                        ConstantBuffer<PathtracerConstantBuffer> globalCB) {
+                        ConstantBuffer<PathtracerConstantBuffer>& globalCB) {
   using namespace RootSignature::TemporalReuse;
   using namespace DefaultComputeShaderParams;
 
   ScopedTimer _prof(L"TemporalReuse", commandList);
-
   // Update the Constant Buffer.
   {
     m_CB->textureDim = XMUINT2(width, height);

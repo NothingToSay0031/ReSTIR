@@ -192,6 +192,8 @@ void Pathtracer::CreateAuxilaryDeviceResources() {
 
   m_calculatePartialDerivativesKernel.Initialize(device, FrameCount);
   m_downsampleGBufferBilateralFilterKernel.Initialize(device, FrameCount);
+  m_spatialReuse.Initialize(device, FrameCount);
+  m_temporalReuse.Initialize(device, FrameCount);
 
   // Create null resource descriptor for the unused second VB in non-animated
   // geometry.
@@ -1012,6 +1014,8 @@ void Pathtracer::Run(Scene& scene) {
         D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
   }
 
+  TemporalReuse();
+  SpatialReuse();
   // Calculate partial derivatives.
   {
     ScopedTimer _prof(L"Calculate Partial Depth Derivatives", commandList);
