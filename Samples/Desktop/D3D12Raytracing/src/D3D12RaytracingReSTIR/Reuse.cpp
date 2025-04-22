@@ -334,22 +334,21 @@ namespace RootSignature {
 namespace Resolve {
 namespace Slot {
 enum Enum {
-  GBufferPosition = 0,     // t0
-  GBufferNormalDepth,      // t1
-  AOSurfaceAlbedo,         // t2
-  MaterialID,              // t3
-  ReservoirYIn,            // t4
-  ReservoirWeightIn,       // t5
-  LightSampleIn,           // t6
-  LightNormalAreaIn,       // t7
-  PrevReservoirYOut,       // u0
-  PrevReservoirWeightOut,  // u1
-  PrevLightSampleOut,      // u2
-  PrevLightNormalAreaOut,  // u3
-  RtColorOut,              // u4
-  MaterialBuffer,          // t8
-  ConstantBuffer,          // b0
-  GlobalConstantBuffer,    // b1
+  GBufferPosition = 0,   
+  GBufferNormalDepth,  
+  MaterialID,        
+  ReservoirYIn,      
+  ReservoirWeightIn, 
+  LightSampleIn,    
+  LightNormalAreaIn,   
+  PrevReservoirYOut,  
+  PrevReservoirWeightOut,
+  PrevLightSampleOut, 
+  PrevLightNormalAreaOut,
+  RtColorOut,
+  MaterialBuffer,
+  ConstantBuffer,    
+  GlobalConstantBuffer,   
   Count
 };
 }
@@ -364,39 +363,35 @@ void Resolve::Initialize(ID3D12Device5* device, UINT frameCount,
 
     CD3DX12_DESCRIPTOR_RANGE ranges[Slot::Count];
     ranges[Slot::GBufferPosition].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
-                                       0);  // t0
+                                       0);  
     ranges[Slot::GBufferNormalDepth].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
-                                          1);  // t1
-    ranges[Slot::AOSurfaceAlbedo].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
-                                       2);                                 // t2
-    ranges[Slot::MaterialID].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3);  // t3
+                                          1);                  
+    ranges[Slot::MaterialID].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2);  
     ranges[Slot::ReservoirYIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
-                                    4);  // t4
+                                    3);
     ranges[Slot::ReservoirWeightIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
-                                         5);  // t5
+                                         4); 
     ranges[Slot::LightSampleIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
-                                     6);  // t6
+                                     5);
     ranges[Slot::LightNormalAreaIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
-                                         7);  // t7
+                                         6);
     ranges[Slot::PrevReservoirYOut].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1,
-                                         0);  // u0
+                                         0);
     ranges[Slot::PrevReservoirWeightOut].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
-                                              1, 1);  // u1
+                                              1, 1); 
     ranges[Slot::PrevLightSampleOut].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1,
-                                          2);  // u2
+                                          2); 
     ranges[Slot::PrevLightNormalAreaOut].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
-                                              1, 3);                       // u3
-    ranges[Slot::RtColorOut].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 4);  // u4
+                                              1, 3);                 
+    ranges[Slot::RtColorOut].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 4);
 
     CD3DX12_ROOT_PARAMETER rootParameters[Slot::Count];
-    for (int i = 0; i < Slot::Count - 3; ++i) {
+    for (int i = 0; i < Slot::Count - 1; ++i) {
       rootParameters[i].InitAsDescriptorTable(1, &ranges[i]);
     }
-
-    rootParameters[Slot::MaterialBuffer].InitAsShaderResourceView(8);  // t8
-    rootParameters[Slot::ConstantBuffer].InitAsConstantBufferView(0);  // b0
-    rootParameters[Slot::GlobalConstantBuffer].InitAsConstantBufferView(
-        1);  // b1
+    rootParameters[Slot::MaterialBuffer].InitAsShaderResourceView(7);
+    rootParameters[Slot::ConstantBuffer].InitAsConstantBufferView(0);
+    rootParameters[Slot::GlobalConstantBuffer].InitAsConstantBufferView(1);
 
     CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc(ARRAYSIZE(rootParameters),
                                                   rootParameters);
@@ -426,7 +421,6 @@ void Resolve::Run(ID3D12GraphicsCommandList4* commandList, UINT width,
                   UINT height, ID3D12DescriptorHeap* descriptorHeap,
                   D3D12_GPU_DESCRIPTOR_HANDLE gBufferPositionHandle,
                   D3D12_GPU_DESCRIPTOR_HANDLE gBufferNormalDepthHandle,
-                  D3D12_GPU_DESCRIPTOR_HANDLE aoSurfaceAlbedoHandle,
                   D3D12_GPU_DESCRIPTOR_HANDLE materialIDInHandle,
                   D3D12_GPU_DESCRIPTOR_HANDLE reservoirYInHandle,
                   D3D12_GPU_DESCRIPTOR_HANDLE reservoirWeightInHandle,
@@ -441,7 +435,6 @@ void Resolve::Run(ID3D12GraphicsCommandList4* commandList, UINT width,
                   ConstantBuffer<PathtracerConstantBuffer>& globalCB) {
   using namespace RootSignature::Resolve;
   using namespace DefaultComputeShaderParams;
-
   ScopedTimer _prof(L"Resolve", commandList);
 
   // Update the Constant Buffer.
@@ -460,8 +453,6 @@ void Resolve::Run(ID3D12GraphicsCommandList4* commandList, UINT width,
                                                gBufferPositionHandle);
     commandList->SetComputeRootDescriptorTable(Slot::GBufferNormalDepth,
                                                gBufferNormalDepthHandle);
-    commandList->SetComputeRootDescriptorTable(Slot::AOSurfaceAlbedo,
-                                               aoSurfaceAlbedoHandle);
     commandList->SetComputeRootDescriptorTable(Slot::MaterialID,
                                                materialIDInHandle);
     commandList->SetComputeRootDescriptorTable(Slot::ReservoirYIn,

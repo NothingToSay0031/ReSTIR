@@ -1154,7 +1154,7 @@ void Pathtracer::CreateTextureResources() {
         &m_ReservoirResources[ReservoirResource::LightNormalArea],
         initialResourceState, L"Light Normal Area");
 
-    CreateRenderTargetResource(device, DXGI_FORMAT_R32_UINT, m_raytracingWidth,
+    CreateRenderTargetResource(device, DXGI_FORMAT_R16_UINT, m_raytracingWidth,
                                m_raytracingHeight, m_cbvSrvUavHeap.get(),
                                &m_GBufferResources[GBufferResource::MaterialID],
                                initialResourceState, L"MaterialID");
@@ -1462,10 +1462,6 @@ void Pathtracer::Resolve(
       &m_GBufferResources[GBufferResource::SurfaceNormalDepth],
       D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
   resourceStateTracker->TransitionResource(
-      &m_GBufferResources[GBufferResource::AOSurfaceAlbedo],
-      D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-
-  resourceStateTracker->TransitionResource(
       &m_GBufferResources[GBufferResource::MaterialID],
       D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
   resourceStateTracker->TransitionResource(
@@ -1494,10 +1490,9 @@ void Pathtracer::Resolve(
   resourceStateTracker->TransitionResource(
       &m_ReservoirResources[ReservoirResource::PrevLightNormalArea],
       D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
   resourceStateTracker->TransitionResource(
       &m_GBufferResources[GBufferResource::Color],
-      D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+      D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
   resourceStateTracker->FlushResourceBarriers();
 
@@ -1506,8 +1501,6 @@ void Pathtracer::Resolve(
       m_cbvSrvUavHeap->GetHeap(),
       m_GBufferResources[GBufferResource::HitPosition].gpuDescriptorReadAccess,
       m_GBufferResources[GBufferResource::SurfaceNormalDepth]
-          .gpuDescriptorReadAccess,
-      m_GBufferResources[GBufferResource::AOSurfaceAlbedo]
           .gpuDescriptorReadAccess,
       m_GBufferResources[GBufferResource::MaterialID].gpuDescriptorReadAccess,
       m_ReservoirResources[ReservoirResource::ReservoirY]
@@ -1526,7 +1519,7 @@ void Pathtracer::Resolve(
           .gpuDescriptorWriteAccess,
       m_ReservoirResources[ReservoirResource::PrevLightNormalArea]
           .gpuDescriptorWriteAccess,
-      m_ReservoirResources[GBufferResource::Color].gpuDescriptorWriteAccess,
+      m_GBufferResources[GBufferResource::Color].gpuDescriptorWriteAccess,
       materialBuffer, m_CB);
 
   // Transition output resources back to NON_PIXEL_SHADER_RESOURCE state.

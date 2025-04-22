@@ -64,7 +64,6 @@ class Resolve {
            ID3D12DescriptorHeap* descriptorHeap,
            D3D12_GPU_DESCRIPTOR_HANDLE gBufferPositionHandle,
            D3D12_GPU_DESCRIPTOR_HANDLE gBufferNormalDepthHandle,
-           D3D12_GPU_DESCRIPTOR_HANDLE aoSurfaceAlbedoHandle,
            D3D12_GPU_DESCRIPTOR_HANDLE materialIDInHandle,
            D3D12_GPU_DESCRIPTOR_HANDLE reservoirYInHandle,
            D3D12_GPU_DESCRIPTOR_HANDLE reservoirWeightInHandle,
