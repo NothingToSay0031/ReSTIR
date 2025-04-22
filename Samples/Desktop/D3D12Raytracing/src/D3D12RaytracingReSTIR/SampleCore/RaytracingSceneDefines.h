@@ -64,12 +64,26 @@ namespace GBufferResource {
         ReprojectedNormalDepth,
         Color,
         AOSurfaceAlbedo,
-				ReservoirY,
-				ReservoirWeight,
-				LightSample,
-				LightNormalArea,
 		Count
 	};
+}
+
+namespace ReservoirResource {
+enum Enum {
+  ReservoirY = 0,
+  ReservoirWeight,
+  LightSample,
+  LightNormalArea,
+  PrevReservoirY,
+  PrevReservoirWeight,
+  PrevLightSample,
+  PrevLightNormalArea,
+  PingPongReservoirY,
+  PingPongReservoirWeight,
+  PingPongLightSample,
+  PingPongLightNormalArea,
+  Count
+};
 }
 
 namespace AOResource {
