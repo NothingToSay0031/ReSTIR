@@ -68,9 +68,11 @@ void main(uint2 DTid : SV_DispatchThreadID)
     // Calculate world ray direction using camera position from constant buffer
     float3 V = -CalculateWorldRayDirection(worldPos.xyz, g_cb.cameraPosition);
     
-    float3 contribution = BxDF::DirectLighting::Shade(material.type, Kd, Ks, lightColor, false, roughness, worldNormal, V, lightDir);
-    
-    g_rtColor[pixelPos].xyz += contribution * g_ReservoirWeight[pixelPos].x;
+    if (dot(-lightDir, g_LightNormalArea[DTid].xyz) > 0 && g_ReservoirY[DTid].w > 0.5 && g_ReservoirWeight[DTid].z > 0.0)
+    {
+        float3 contribution = BxDF::DirectLighting::Shade(material.type, Kd, Ks, lightColor, false, roughness, worldNormal, V, lightDir);
+        g_rtColor[pixelPos].xyz += contribution * g_ReservoirWeight[pixelPos].x;
+    }
     g_PrevLightSample_Out[pixelPos] = g_LightSample[pixelPos];
     g_PrevLightNormalArea_Out[pixelPos] = g_LightNormalArea[pixelPos];
     g_PrevReservoirY_Out[pixelPos] = g_ReservoirY[pixelPos];
