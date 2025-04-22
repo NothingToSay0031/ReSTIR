@@ -20,12 +20,19 @@ HongweiJi_ToriDunn_AnZhang
 - [x] Update the existing path tracer:
     - [x] Add support for sampling from Area Lights
     - This will serve as the baseline for comparison with ReSTIR
+
 ### Implement ReSTIR
-- [ ] Integrate ReSTIR into the path tracer mode (WIP)
+- [x] Integrate ReSTIR into the path tracer mode (WIP)
     - [x] Weighted Reservoir Sampling.
     - [x] Spatial Reuse Pixel Shader.
-    - [ ] Temporal Reuse Pixel Shader.
-    - [ ] Shade Pixel.
+    - [x] Temporal Reuse Pixel Shader.
+    - [x] Shade Pixel.
+
+### Current Issues
+- [ ] Improving or extending the `GenerateAreaLights` function.
+- [ ] PBRT Light Loading
+- [ ] Invisible Light Sources
+
 ### Test Variants & Tuning
 - [ ] Experiment with different ReSTIR parameters (e.g. reservoir size.)
 - [ ] Compare performance and quality across different settings and baselines

@@ -334,21 +334,21 @@ namespace RootSignature {
 namespace Resolve {
 namespace Slot {
 enum Enum {
-  GBufferPosition = 0,   
-  GBufferNormalDepth,  
-  MaterialID,        
-  ReservoirYIn,      
-  ReservoirWeightIn, 
-  LightSampleIn,    
-  LightNormalAreaIn,   
-  PrevReservoirYOut,  
+  GBufferPosition = 0,
+  GBufferNormalDepth,
+  MaterialID,
+  ReservoirYIn,
+  ReservoirWeightIn,
+  LightSampleIn,
+  LightNormalAreaIn,
+  PrevReservoirYOut,
   PrevReservoirWeightOut,
-  PrevLightSampleOut, 
+  PrevLightSampleOut,
   PrevLightNormalAreaOut,
   RtColorOut,
   MaterialBuffer,
-  ConstantBuffer,    
-  GlobalConstantBuffer,   
+  ConstantBuffer,
+  GlobalConstantBuffer,
   Count
 };
 }
@@ -362,27 +362,21 @@ void Resolve::Initialize(ID3D12Device5* device, UINT frameCount,
     using namespace RootSignature::Resolve;
 
     CD3DX12_DESCRIPTOR_RANGE ranges[Slot::Count];
-    ranges[Slot::GBufferPosition].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
-                                       0);  
+    ranges[Slot::GBufferPosition].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
     ranges[Slot::GBufferNormalDepth].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
-                                          1);                  
-    ranges[Slot::MaterialID].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2);  
-    ranges[Slot::ReservoirYIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
-                                    3);
-    ranges[Slot::ReservoirWeightIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
-                                         4); 
-    ranges[Slot::LightSampleIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
-                                     5);
-    ranges[Slot::LightNormalAreaIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
-                                         6);
-    ranges[Slot::PrevReservoirYOut].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1,
-                                         0);
+                                          1);
+    ranges[Slot::MaterialID].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2);
+    ranges[Slot::ReservoirYIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3);
+    ranges[Slot::ReservoirWeightIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 4);
+    ranges[Slot::LightSampleIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 5);
+    ranges[Slot::LightNormalAreaIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 6);
+    ranges[Slot::PrevReservoirYOut].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
     ranges[Slot::PrevReservoirWeightOut].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
-                                              1, 1); 
+                                              1, 1);
     ranges[Slot::PrevLightSampleOut].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1,
-                                          2); 
+                                          2);
     ranges[Slot::PrevLightNormalAreaOut].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
-                                              1, 3);                 
+                                              1, 3);
     ranges[Slot::RtColorOut].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 4);
 
     CD3DX12_ROOT_PARAMETER rootParameters[Slot::Count];

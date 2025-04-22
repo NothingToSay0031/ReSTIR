@@ -35,9 +35,8 @@ float3 CalculateWorldRayDirection(float3 worldPos, float3 cameraPos)
 }
 
 [numthreads(DefaultComputeShaderParams::ThreadGroup::Width, DefaultComputeShaderParams::ThreadGroup::Height, 1)]
-void main(uint2 DTid : SV_DispatchThreadID)
+void main(uint2 pixelPos : SV_DispatchThreadID)
 {
-    uint2 pixelPos = DTid.xy;
     float width = cb.textureDim.x;
     float height = cb.textureDim.y;
     
@@ -59,16 +58,14 @@ void main(uint2 DTid : SV_DispatchThreadID)
     const float3 Kd = material.Kd;
     const float3 Ks = material.Ks;
     const float roughness = material.roughness;
-    float3 lightColor = g_LightSample[DTid].xyz;
-    
-    float3 sampledPosition = g_ReservoirY[DTid].xyz;
-    
+    float3 lightColor = g_LightSample[pixelPos].xyz;
+    float3 sampledPosition = g_ReservoirY[pixelPos].xyz;
     float3 lightDir = normalize(sampledPosition - worldPos.xyz);
     
     // Calculate world ray direction using camera position from constant buffer
     float3 V = -CalculateWorldRayDirection(worldPos.xyz, g_cb.cameraPosition);
     
-    if (dot(-lightDir, g_LightNormalArea[DTid].xyz) > 0 && g_ReservoirY[DTid].w > 0.5 && g_ReservoirWeight[DTid].z > 0.0)
+    if (dot(-lightDir, g_LightNormalArea[pixelPos].xyz) > 0 && g_ReservoirY[pixelPos].w > 0.5 && g_ReservoirWeight[pixelPos].z > 0.0)
     {
         float3 contribution = BxDF::DirectLighting::Shade(material.type, Kd, Ks, lightColor, false, roughness, worldNormal, V, lightDir);
         g_rtColor[pixelPos].xyz += contribution * g_ReservoirWeight[pixelPos].x;
