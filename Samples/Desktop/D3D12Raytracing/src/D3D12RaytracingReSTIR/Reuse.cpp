@@ -120,8 +120,6 @@ void SpatialReuse::Run(ID3D12GraphicsCommandList4* commandList,
     m_CB->textureDim = XMUINT2(width, height);
     m_CBinstanceID = (m_CBinstanceID + 1) % m_CB.NumInstances();
     m_CB.CopyStagingToGpu(m_CBinstanceID);
-    commandList->SetComputeRootConstantBufferView(
-        Slot::ConstantBuffer, m_CB.GpuVirtualAddress(m_CBinstanceID));
   }
 
   // Set pipeline state.
@@ -150,6 +148,9 @@ void SpatialReuse::Run(ID3D12GraphicsCommandList4* commandList,
                                                lightSampleOutHandle);
     commandList->SetComputeRootDescriptorTable(Slot::LightNormalAreaOut,
                                                lightNormalAreaOutHandle);
+    commandList->SetComputeRootConstantBufferView(
+        Slot::ConstantBuffer, m_CB.GpuVirtualAddress(m_CBinstanceID));
+    commandList->SetPipelineState(m_pipelineStateObject.Get());
   }
   // Dispatch.
   {

@@ -59,7 +59,7 @@ float nextRand(inout uint state)
 
 // Compute shader entry point
 [numthreads(DefaultComputeShaderParams::ThreadGroup::Width, DefaultComputeShaderParams::ThreadGroup::Height, 1)]
-void main(uint3 DTid : SV_DispatchThreadID)
+void main(uint2 DTid : SV_DispatchThreadID)
 {
     uint2 pixelPos = DTid.xy;
     float width = cb.textureDim.x;
