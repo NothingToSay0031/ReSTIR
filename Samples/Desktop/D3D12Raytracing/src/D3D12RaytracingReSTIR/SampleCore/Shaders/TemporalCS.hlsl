@@ -1,78 +1,41 @@
-//*********************************************************
-//
-// Copyright (c) Microsoft. All rights reserved.
-// This code is licensed under the MIT License (MIT).
-// THIS CODE IS PROVIDED *AS IS* WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING ANY
-// IMPLIED WARRANTIES OF FITNESS FOR A PARTICULAR
-// PURPOSE, MERCHANTABILITY, OR NON-INFRINGEMENT.
-//
-//*********************************************************
-
 #define HLSL
+
 #include "RaytracingHlslCompat.h"
 #include "RaytracingShaderHelper.hlsli"
 
-Texture2D<float4> g_inNormalDepth : register(t1);
-Texture2D<float4> g_inHitPosition : register(t2);
-Texture2D<float2> g_inPartialDistanceDerivatives : register(t4);
-Texture2D<float> g_inDepth : register(t5); 
-Texture2D<float2> g_inMotionVector : register(t6);
-Texture2D<NormalDepthTexFormat> g_inReprojectedNormalDepth : register(t7);
-Texture2D<float4> g_inSurfaceAlbedo : register(t8);
-RWTexture2D<float4> g_outNormalDepth : register(u1);
-RWTexture2D<float4> g_outHitPosition : register(u2);
-RWTexture2D<float2> g_outPartialDistanceDerivatives : register(u4);
-RWTexture2D<float> g_outDepth : register(u5);   
-RWTexture2D<float2> g_outMotionVector : register(u6);
-RWTexture2D<NormalDepthTexFormat> g_outReprojectedNormalDepth : register(u7);
-RWTexture2D<float4> g_outSurfaceAlbedo : register(u8);
+// Input G-Buffer textures
+Texture2D<float4> g_rtGBufferPosition : register(t0); // World space position (xyz) + flag (w)
+Texture2D<NormalDepthTexFormat> g_rtGBufferNormalDepth : register(t1); // Normal (xyz) + depth (w)
+Texture2D<float4> g_rtAOSurfaceAlbedo : register(t2); // Surface albedo/material diffuse
 
-SamplerState ClampSampler : register(s0);
+
+// Input previous state reservoirs
+Texture2D<float4> g_PrevReservoirY_In : register(t3); // xyz: stored sample position, w: hasValue flag (1.0 if valid)
+Texture2D<float4> g_PrevReservoirWeight_In : register(t4); // x: W_Y, y: w_sum, z: M (number of samples), w: frame counter
+Texture2D<float4> g_PrevLightSample_In : register(t5); // xyz: light color/intensity, w: not used
+Texture2D<float4> g_PrevLightNormalArea_In : register(t6); // xyz: light normal, w: light area
+
+// Input current state reservoirs
+Texture2D<float4> g_ReservoirY_In : register(t7); // xyz: stored sample position, w: hasValue flag (1.0 if valid)
+Texture2D<float4> g_ReservoirWeight_In : register(t8); // x: W_Y, y: w_sum, z: M (number of samples), w: frame counter
+Texture2D<float4> g_LightSample_In : register(t9); // xyz: light color/intensity, w: not used
+Texture2D<float4> g_LightNormalArea_In : register(t10); // xyz: light normal, w: light area
+
+// Output reservoirs
+RWTexture2D<float4> g_ReservoirY_Out : register(u0); // xyz: stored sample position, w: hasValue flag
+RWTexture2D<float4> g_ReservoirWeight_Out : register(u1); // x: W_Y, y: w_sum, z: M (number of samples), w: frame counter
+RWTexture2D<float4> g_LightSample_Out : register(u2); // xyz: light color/intensity, w: not used
+RWTexture2D<float4> g_LightNormalArea_Out : register(u3); // xyz: light normal, w: light area
 
 ConstantBuffer<TextureDimConstantBuffer> cb : register(b0);
+ConstantBuffer<PathtracerConstantBuffer> g_cb : register(b1);
 
-void LoadDepthAndEncodedNormal(in uint2 texIndex, out float4 encodedNormalDepth, out float depth)
-{
-    encodedNormalDepth = g_inNormalDepth[texIndex];
-    depth = encodedNormalDepth.z;
-}
-
-// Returns a selected depth index when bilateral downsapling.
-uint GetIndexFromDepthAwareBilateralDownsample2x2(in float4 vDepths, in uint2 DTid)
-{
-    // Alternate between min max depth sample in a checkerboard 2x2 pattern to improve 
-    // depth matching for bilateral 2x2 upsampling in a later pass.
-    // Ref: http://c0de517e.blogspot.com/2016/02/downsampled-effects-with-depth-aware.html
-    bool checkerboardTakeMin = ((DTid.x + DTid.y) & 1) == 0;
-
-    float lowResDepth = checkerboardTakeMin ? min4(vDepths) : max4(vDepths);
-
-    // Find the corresponding sample index to the the selected sample depth.
-    return GetIndexOfValueClosestToTheReference(lowResDepth, vDepths);
-}
 
 [numthreads(DefaultComputeShaderParams::ThreadGroup::Width, DefaultComputeShaderParams::ThreadGroup::Height, 1)]
 void main(uint2 DTid : SV_DispatchThreadID)
 {
-    uint2 topLeftSrcIndex = DTid << 1;
-    
-    float2 centerTexCoord = (topLeftSrcIndex + 0.5) * cb.invTextureDim;
-    float4 vDepths = g_inDepth.Gather(ClampSampler, centerTexCoord).wzxy;
-
-    uint selectedOffset = GetIndexFromDepthAwareBilateralDownsample2x2(vDepths, DTid);
-    uint2 selectedDTid = topLeftSrcIndex + Get2DQuadIndexOffset(selectedOffset);
-
-    g_outDepth[DTid] = vDepths[selectedOffset];
-    g_outNormalDepth[DTid] = g_inNormalDepth[selectedDTid];
-
-    // Since we're reducing the resolution by 2, multiple the partial derivatives by 2. 
-    // Either that or the multiplier should be applied when calculating weights.
-    // TODO: use perspective correct ddxy interpolation? Or apply the scaling on use?
-    g_outPartialDistanceDerivatives[DTid] = 2 * g_inPartialDistanceDerivatives[selectedDTid];
-
-    g_outMotionVector[DTid] = g_inMotionVector[selectedDTid];
-    g_outReprojectedNormalDepth[DTid] = g_inReprojectedNormalDepth[selectedDTid];
-    g_outHitPosition[DTid] = g_inHitPosition[selectedDTid];
-    g_outSurfaceAlbedo[DTid] = g_inSurfaceAlbedo[selectedDTid];
+    g_ReservoirY_Out[DTid] = g_ReservoirY_In[DTid];
+    g_ReservoirWeight_Out[DTid] = g_ReservoirWeight_In[DTid];
+    g_LightNormalArea_Out[DTid] = g_LightNormalArea_In[DTid];
+    g_LightSample_Out[DTid] = g_LightSample_In[DTid];
 }

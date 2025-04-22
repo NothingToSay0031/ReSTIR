@@ -348,10 +348,10 @@ float3 Shade(
         rayPayload.isFirstHit = false; // Reset the flag.
         uint2 DTid = DispatchRaysIndex().xy;
         g_ReservoirY[DTid] = float4(0, 0, 0, 0); // Reset the reservoir
-        g_ReservoirWeight[DTid] = float4(0, 0, 0, g_cb.frameCount); // Reset the reservoir weight
+        g_ReservoirWeight[DTid] = float4(0, 0, 0, g_cb.frameIndex); // Reset the reservoir weight
         g_LightSample[DTid] = float4(0, 0, 0, 0); // Reset the light sample
         g_LightNormalArea[DTid] = float4(0, 0, 0, 0); // Reset the light normal area
-        uint seed = DTid.x * 73856093 ^ DTid.y * 19349663 ^ g_cb.frameCount * 83492791;
+        uint seed = DTid.x * 73856093 ^ DTid.y * 19349663 ^ g_cb.frameIndex * 83492791;
         const uint M = 32;
         for (uint i = 0; i < M; i++)
         {

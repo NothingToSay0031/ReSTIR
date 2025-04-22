@@ -810,7 +810,7 @@ void Pathtracer::UpdateConstantBuffer(Scene& scene) {
   m_CB->defaultAmbientIntensity = Pathtracer_Args::DefaultAmbientIntensity;
   m_CB->useBaseAlbedoFromMaterial =
       Composition_Args::CompositionMode == CompositionType::BaseMaterialAlbedo;
-  m_CB->frameCount = m_deviceResources->GetCurrentFrameIndex();
+  m_CB->frameIndex = m_deviceResources->GetCurrentFrameIndex();
   auto& prevFrameCamera = scene.PrevFrameCamera();
   XMMATRIX prevView, prevProj;
   prevFrameCamera.GetViewProj(&prevView, &prevProj, m_raytracingWidth,
@@ -1152,6 +1152,7 @@ void Pathtracer::CreateTextureResources() {
         m_raytracingHeight, m_cbvSrvUavHeap.get(),
         &m_ReservoirResources[ReservoirResource::PrevLightNormalArea],
         initialResourceState, L"Prev Light Normal Area");
+
     CreateRenderTargetResource(
         device, DXGI_FORMAT_R16G16B16A16_FLOAT, m_raytracingWidth,
         m_raytracingHeight, m_cbvSrvUavHeap.get(),
@@ -1319,85 +1320,106 @@ void Pathtracer::TemporalReuse() {
   auto resourceStateTracker = m_deviceResources->GetGpuResourceStateTracker();
   ScopedTimer _prof(L"TemporalReuse", commandList);
 
-  // Transition all output resources to UAV state.
-  {
-    resourceStateTracker->TransitionResource(
-        &m_GBufferQuarterResResources[GBufferResource::HitPosition],
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-    resourceStateTracker->TransitionResource(
-        &m_GBufferQuarterResResources[GBufferResource::PartialDepthDerivatives],
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-    resourceStateTracker->TransitionResource(
-        &m_GBufferQuarterResResources[GBufferResource::MotionVector],
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-    resourceStateTracker->TransitionResource(
-        &m_GBufferQuarterResResources[GBufferResource::ReprojectedNormalDepth],
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-    resourceStateTracker->TransitionResource(
-        &m_GBufferQuarterResResources[GBufferResource::Depth],
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-    resourceStateTracker->TransitionResource(
-        &m_GBufferQuarterResResources[GBufferResource::SurfaceNormalDepth],
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-    resourceStateTracker->TransitionResource(
-        &m_GBufferQuarterResResources[GBufferResource::AOSurfaceAlbedo],
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-  }
+  // Transition input resources to NON_PIXEL_SHADER_RESOURCE state.
+  resourceStateTracker->TransitionResource(
+      &m_GBufferResources[GBufferResource::HitPosition],
+      D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+  resourceStateTracker->TransitionResource(
+      &m_GBufferResources[GBufferResource::SurfaceNormalDepth],
+      D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+  resourceStateTracker->TransitionResource(
+      &m_GBufferResources[GBufferResource::AOSurfaceAlbedo],
+      D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+  resourceStateTracker->TransitionResource(
+      &m_ReservoirResources[ReservoirResource::PrevReservoirY],
+      D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+  resourceStateTracker->TransitionResource(
+      &m_ReservoirResources[ReservoirResource::PrevReservoirWeight],
+      D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+  resourceStateTracker->TransitionResource(
+      &m_ReservoirResources[ReservoirResource::PrevLightSample],
+      D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+  resourceStateTracker->TransitionResource(
+      &m_ReservoirResources[ReservoirResource::PrevLightNormalArea],
+      D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+  resourceStateTracker->TransitionResource(
+      &m_ReservoirResources[ReservoirResource::ReservoirY],
+      D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+  resourceStateTracker->TransitionResource(
+      &m_ReservoirResources[ReservoirResource::ReservoirWeight],
+      D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+  resourceStateTracker->TransitionResource(
+      &m_ReservoirResources[ReservoirResource::LightSample],
+      D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+  resourceStateTracker->TransitionResource(
+      &m_ReservoirResources[ReservoirResource::LightNormalArea],
+      D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+  // Transition output resources to UNORDERED_ACCESS state.
+  resourceStateTracker->TransitionResource(
+      &m_ReservoirResources[ReservoirResource::PingPongReservoirY],
+      D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+  resourceStateTracker->TransitionResource(
+      &m_ReservoirResources[ReservoirResource::PingPongReservoirWeight],
+      D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+  resourceStateTracker->TransitionResource(
+      &m_ReservoirResources[ReservoirResource::PingPongLightSample],
+      D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+  resourceStateTracker->TransitionResource(
+      &m_ReservoirResources[ReservoirResource::PingPongLightNormalArea],
+      D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
   resourceStateTracker->FlushResourceBarriers();
+
+  // Run the TemporalReuse kernel.
   m_temporalReuse.Run(
       commandList, m_raytracingWidth, m_raytracingHeight,
       m_cbvSrvUavHeap->GetHeap(),
+      m_GBufferResources[GBufferResource::HitPosition].gpuDescriptorReadAccess,
       m_GBufferResources[GBufferResource::SurfaceNormalDepth]
           .gpuDescriptorReadAccess,
-      m_GBufferResources[GBufferResource::HitPosition].gpuDescriptorReadAccess,
-      m_GBufferResources[GBufferResource::PartialDepthDerivatives]
-          .gpuDescriptorReadAccess,
-      m_GBufferResources[GBufferResource::MotionVector].gpuDescriptorReadAccess,
-      m_GBufferResources[GBufferResource::ReprojectedNormalDepth]
-          .gpuDescriptorReadAccess,
-      m_GBufferResources[GBufferResource::Depth].gpuDescriptorReadAccess,
       m_GBufferResources[GBufferResource::AOSurfaceAlbedo]
           .gpuDescriptorReadAccess,
-      m_GBufferQuarterResResources[GBufferResource::SurfaceNormalDepth]
+      m_ReservoirResources[ReservoirResource::PrevReservoirY]
+          .gpuDescriptorReadAccess,
+      m_ReservoirResources[ReservoirResource::PrevReservoirWeight]
+          .gpuDescriptorReadAccess,
+      m_ReservoirResources[ReservoirResource::PrevLightSample]
+          .gpuDescriptorReadAccess,
+      m_ReservoirResources[ReservoirResource::PrevLightNormalArea]
+          .gpuDescriptorReadAccess,
+      m_ReservoirResources[ReservoirResource::ReservoirY]
+          .gpuDescriptorReadAccess,
+      m_ReservoirResources[ReservoirResource::ReservoirWeight]
+          .gpuDescriptorReadAccess,
+      m_ReservoirResources[ReservoirResource::LightSample]
+          .gpuDescriptorReadAccess,
+      m_ReservoirResources[ReservoirResource::LightNormalArea]
+          .gpuDescriptorReadAccess,
+      m_ReservoirResources[ReservoirResource::PingPongReservoirY]
           .gpuDescriptorWriteAccess,
-      m_GBufferQuarterResResources[GBufferResource::HitPosition]
+      m_ReservoirResources[ReservoirResource::PingPongReservoirWeight]
           .gpuDescriptorWriteAccess,
-      m_GBufferQuarterResResources[GBufferResource::PartialDepthDerivatives]
+      m_ReservoirResources[ReservoirResource::PingPongLightSample]
           .gpuDescriptorWriteAccess,
-      m_GBufferQuarterResResources[GBufferResource::MotionVector]
+      m_ReservoirResources[ReservoirResource::PingPongLightNormalArea]
           .gpuDescriptorWriteAccess,
-      m_GBufferQuarterResResources[GBufferResource::ReprojectedNormalDepth]
-          .gpuDescriptorWriteAccess,
-      m_GBufferQuarterResResources[GBufferResource::Depth]
-          .gpuDescriptorWriteAccess,
-      m_GBufferQuarterResResources[GBufferResource::AOSurfaceAlbedo]
-          .gpuDescriptorWriteAccess);
+      m_CB);
 
-  // Transition GBuffer resources to shader resource state.
-  {
-    resourceStateTracker->TransitionResource(
-        &m_GBufferQuarterResResources[GBufferResource::HitPosition],
-        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-    resourceStateTracker->TransitionResource(
-        &m_GBufferQuarterResResources[GBufferResource::SurfaceNormalDepth],
-        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-    resourceStateTracker->TransitionResource(
-        &m_GBufferQuarterResResources[GBufferResource::PartialDepthDerivatives],
-        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-    resourceStateTracker->TransitionResource(
-        &m_GBufferQuarterResResources[GBufferResource::MotionVector],
-        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-    resourceStateTracker->TransitionResource(
-        &m_GBufferQuarterResResources[GBufferResource::ReprojectedNormalDepth],
-        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-    resourceStateTracker->TransitionResource(
-        &m_GBufferQuarterResResources[GBufferResource::Depth],
-        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-    resourceStateTracker->TransitionResource(
-        &m_GBufferQuarterResResources[GBufferResource::AOSurfaceAlbedo],
-        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-  }
+  // Transition output resources back to NON_PIXEL_SHADER_RESOURCE state.
+  resourceStateTracker->TransitionResource(
+      &m_ReservoirResources[ReservoirResource::PingPongReservoirY],
+      D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+  resourceStateTracker->TransitionResource(
+      &m_ReservoirResources[ReservoirResource::PingPongReservoirWeight],
+      D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+  resourceStateTracker->TransitionResource(
+      &m_ReservoirResources[ReservoirResource::PingPongLightSample],
+      D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+  resourceStateTracker->TransitionResource(
+      &m_ReservoirResources[ReservoirResource::PingPongLightNormalArea],
+      D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 }
 
 void Pathtracer::DownsampleGBuffer() {

@@ -230,7 +230,7 @@ struct PathtracerConstantBuffer
 
     AreaLightData areaLights[32];
 
-    UINT frameCount;
+    UINT frameIndex;
     XMUINT3 padding;
 };
 

@@ -11,8 +11,8 @@
 
 #include "Reuse.h"
 
-#include "CompiledShaders\TemporalCS.hlsl.h"
 #include "CompiledShaders\SpatialCS.hlsl.h"
+#include "CompiledShaders\TemporalCS.hlsl.h"
 #include "D3D12RaytracingReSTIR.h"
 #include "DirectXRaytracingHelper.h"
 #include "EngineProfiling.h"
@@ -115,7 +115,7 @@ void SpatialReuse::Run(ID3D12GraphicsCommandList4* commandList,
 
   ScopedTimer _prof(L"SpatialReuse", commandList);
 
- // Update the Constant Buffer.
+  // Update the Constant Buffer.
   {
     m_CB->textureDim = XMUINT2(width, height);
     m_CBinstanceID = (m_CBinstanceID + 1) % m_CB.NumInstances();
@@ -161,112 +161,73 @@ void SpatialReuse::Run(ID3D12GraphicsCommandList4* commandList,
 
 namespace RootSignature {
 
-namespace TemporalReuse { 
+namespace TemporalReuse {
 namespace Slot {
 enum Enum {
-  OutputNormal = 0,
-  OutputPosition,
-  OutputPartialDistanceDerivative,
-  OutputMotionVector,
-  OutputPrevFrameHitPosition,
-  OutputDepth,
-  OutputSurfaceAlbedo,
-  InputNormal,
-  InputPosition,
-  InputPartialDistanceDerivative,
-  InputMotionVector,
-  InputPrevFrameHitPosition,
-  InputDepth,
-  InputSurfaceAlbedo,
+  GBufferPosition = 0,
+  GBufferNormalDepth,
+  AOSurfaceAlbedo,
+  PrevReservoirYIn,
+  PrevReservoirWeightIn,
+  PrevLightSampleIn,
+  PrevLightNormalAreaIn,
+  ReservoirYIn,
+  ReservoirWeightIn,
+  LightSampleIn,
+  LightNormalAreaIn,
+  ReservoirYOut,
+  ReservoirWeightOut,
+  LightSampleOut,
+  LightNormalAreaOut,
   ConstantBuffer,
+  GlobalConstantBuffer,
   Count
 };
 }
 }  // namespace TemporalReuse
 }  // namespace RootSignature
 
-void TemporalReuse::Initialize(ID3D12Device5* device,
-                                                      UINT frameCount,
-                                                      UINT numCallsPerFrame) {
+void TemporalReuse::Initialize(ID3D12Device5* device, UINT frameCount,
+                               UINT numCallsPerFrame) {
   // Create root signature.
   {
     using namespace RootSignature::TemporalReuse;
 
     CD3DX12_DESCRIPTOR_RANGE ranges[Slot::Count];
-    ranges[Slot::InputNormal].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
-                                   1);  // 1 input normal texture
-    ranges[Slot::InputPosition].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
-                                     2);  // 1 input position texture
-    ranges[Slot::InputPartialDistanceDerivative].Init(
-        D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
-        4);  // 1 input partial distance derivative
-    ranges[Slot::OutputNormal].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1,
-                                    1);  // 1 output normal texture
-    ranges[Slot::OutputPosition].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1,
-                                      2);  // 1 output position texture
-    ranges[Slot::OutputPartialDistanceDerivative].Init(
-        D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1,
-        4);  // 1 output partial distance derivative
-    ranges[Slot::InputDepth].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
-                                  5);  // 1 input depth
-    ranges[Slot::OutputDepth].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1,
-                                   5);  // 1 output depth
-    ranges[Slot::InputMotionVector].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
-                                         6);  // 1 input motion vector
-    ranges[Slot::OutputMotionVector].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1,
-                                          6);  // 1 output motion vector
-    ranges[Slot::InputPrevFrameHitPosition].Init(
-        D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
-        7);  // 1 input previous frame hit position
-    ranges[Slot::OutputPrevFrameHitPosition].Init(
-        D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1,
-        7);  // 1 output previous frame hit position
-    ranges[Slot::InputSurfaceAlbedo].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
-                                          8);
-    ranges[Slot::OutputSurfaceAlbedo].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1,
-                                           8);
+    ranges[Slot::GBufferPosition].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+    ranges[Slot::GBufferNormalDepth].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
+                                          1);
+    ranges[Slot::AOSurfaceAlbedo].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2);
+    ranges[Slot::PrevReservoirYIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3);
+    ranges[Slot::PrevReservoirWeightIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
+                                             4);
+    ranges[Slot::PrevLightSampleIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 5);
+    ranges[Slot::PrevLightNormalAreaIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
+                                             6);
+    ranges[Slot::ReservoirYIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 7);
+    ranges[Slot::ReservoirWeightIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 8);
+    ranges[Slot::LightSampleIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 9);
+    ranges[Slot::LightNormalAreaIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
+                                         10);
+    ranges[Slot::ReservoirYOut].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
+    ranges[Slot::ReservoirWeightOut].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1,
+                                          1);
+    ranges[Slot::LightSampleOut].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 2);
+    ranges[Slot::LightNormalAreaOut].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1,
+                                          3);
 
     CD3DX12_ROOT_PARAMETER rootParameters[Slot::Count];
-    rootParameters[Slot::InputNormal].InitAsDescriptorTable(
-        1, &ranges[Slot::InputNormal]);
-    rootParameters[Slot::InputPosition].InitAsDescriptorTable(
-        1, &ranges[Slot::InputPosition]);
-    rootParameters[Slot::InputPartialDistanceDerivative].InitAsDescriptorTable(
-        1, &ranges[Slot::InputPartialDistanceDerivative]);
-    rootParameters[Slot::OutputNormal].InitAsDescriptorTable(
-        1, &ranges[Slot::OutputNormal]);
-    rootParameters[Slot::OutputPosition].InitAsDescriptorTable(
-        1, &ranges[Slot::OutputPosition]);
-    rootParameters[Slot::OutputPartialDistanceDerivative].InitAsDescriptorTable(
-        1, &ranges[Slot::OutputPartialDistanceDerivative]);
-    rootParameters[Slot::InputDepth].InitAsDescriptorTable(
-        1, &ranges[Slot::InputDepth]);
-    rootParameters[Slot::OutputDepth].InitAsDescriptorTable(
-        1, &ranges[Slot::OutputDepth]);
-    rootParameters[Slot::InputMotionVector].InitAsDescriptorTable(
-        1, &ranges[Slot::InputMotionVector]);
-    rootParameters[Slot::OutputMotionVector].InitAsDescriptorTable(
-        1, &ranges[Slot::OutputMotionVector]);
-    rootParameters[Slot::InputPrevFrameHitPosition].InitAsDescriptorTable(
-        1, &ranges[Slot::InputPrevFrameHitPosition]);
-    rootParameters[Slot::OutputPrevFrameHitPosition].InitAsDescriptorTable(
-        1, &ranges[Slot::OutputPrevFrameHitPosition]);
-    rootParameters[Slot::InputSurfaceAlbedo].InitAsDescriptorTable(
-        1, &ranges[Slot::InputSurfaceAlbedo]);
-    rootParameters[Slot::OutputSurfaceAlbedo].InitAsDescriptorTable(
-        1, &ranges[Slot::OutputSurfaceAlbedo]);
+    for (int i = 0; i < Slot::Count - 1; ++i) {
+      rootParameters[i].InitAsDescriptorTable(1, &ranges[i]);
+    }
+
     rootParameters[Slot::ConstantBuffer].InitAsConstantBufferView(0);
+    rootParameters[Slot::GlobalConstantBuffer].InitAsConstantBufferView(1);
 
-    CD3DX12_STATIC_SAMPLER_DESC staticSamplers[] = {CD3DX12_STATIC_SAMPLER_DESC(
-        0, D3D12_FILTER_MIN_MAG_MIP_POINT, D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
-        D3D12_TEXTURE_ADDRESS_MODE_CLAMP)};
-
-    CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc(
-        ARRAYSIZE(rootParameters), rootParameters, ARRAYSIZE(staticSamplers),
-        staticSamplers);
-    SerializeAndCreateRootSignature(
-        device, rootSignatureDesc, &m_rootSignature,
-        L"Compute root signature: TemporalReuse");
+    CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc(ARRAYSIZE(rootParameters),
+                                                  rootParameters);
+    SerializeAndCreateRootSignature(device, rootSignatureDesc, &m_rootSignature,
+                                    L"Compute root signature: TemporalReuse");
   }
 
   // Create compute pipeline state.
@@ -275,11 +236,9 @@ void TemporalReuse::Initialize(ID3D12Device5* device,
     descComputePSO.pRootSignature = m_rootSignature.Get();
     descComputePSO.CS = CD3DX12_SHADER_BYTECODE(
         static_cast<const void*>(g_pTemporalCS), ARRAYSIZE(g_pTemporalCS));
-
     ThrowIfFailed(device->CreateComputePipelineState(
         &descComputePSO, IID_PPV_ARGS(&m_pipelineStateObject)));
-    m_pipelineStateObject->SetName(
-        L"Pipeline state object: TemporalReuse");
+    m_pipelineStateObject->SetName(L"Pipeline state object: TemporalReuse");
   }
 
   // Create shader resources
@@ -289,81 +248,85 @@ void TemporalReuse::Initialize(ID3D12Device5* device,
   }
 }
 
-// Downsamples input resource.
-// width, height - dimensions of the input resource.
-void TemporalReuse::Run(
-    ID3D12GraphicsCommandList4* commandList, UINT width, UINT height,
-    ID3D12DescriptorHeap* descriptorHeap,
-    D3D12_GPU_DESCRIPTOR_HANDLE inputNormalResourceHandle,
-    D3D12_GPU_DESCRIPTOR_HANDLE inputPositionResourceHandle,
-    D3D12_GPU_DESCRIPTOR_HANDLE inputPartialDistanceDerivativesResourceHandle,
-    D3D12_GPU_DESCRIPTOR_HANDLE inputMotionVectorResourceHandle,
-    D3D12_GPU_DESCRIPTOR_HANDLE inputPrevFrameHitPositionResourceHandle,
-    D3D12_GPU_DESCRIPTOR_HANDLE inputDepthResourceHandle,
-    D3D12_GPU_DESCRIPTOR_HANDLE inputSurfaceAlbedoResourceHandle,
-    D3D12_GPU_DESCRIPTOR_HANDLE outputNormalResourceHandle,
-    D3D12_GPU_DESCRIPTOR_HANDLE outputPositionResourceHandle,
-    D3D12_GPU_DESCRIPTOR_HANDLE outputPartialDistanceDerivativesResourceHandle,
-    D3D12_GPU_DESCRIPTOR_HANDLE outputMotionVectorResourceHandle,
-    D3D12_GPU_DESCRIPTOR_HANDLE outputPrevFrameHitPositionResourceHandle,
-    D3D12_GPU_DESCRIPTOR_HANDLE outputDepthResourceHandle,
-    D3D12_GPU_DESCRIPTOR_HANDLE outputSurfaceAlbedoResourceHandle) {
+void TemporalReuse::Run(ID3D12GraphicsCommandList4* commandList, UINT width,
+                        UINT height, ID3D12DescriptorHeap* descriptorHeap,
+                        D3D12_GPU_DESCRIPTOR_HANDLE gBufferPositionHandle,
+                        D3D12_GPU_DESCRIPTOR_HANDLE gBufferNormalDepthHandle,
+                        D3D12_GPU_DESCRIPTOR_HANDLE aoSurfaceAlbedoHandle,
+                        D3D12_GPU_DESCRIPTOR_HANDLE prevReservoirYInHandle,
+                        D3D12_GPU_DESCRIPTOR_HANDLE prevReservoirWeightInHandle,
+                        D3D12_GPU_DESCRIPTOR_HANDLE prevLightSampleInHandle,
+                        D3D12_GPU_DESCRIPTOR_HANDLE prevLightNormalAreaInHandle,
+                        D3D12_GPU_DESCRIPTOR_HANDLE reservoirYInHandle,
+                        D3D12_GPU_DESCRIPTOR_HANDLE reservoirWeightInHandle,
+                        D3D12_GPU_DESCRIPTOR_HANDLE lightSampleInHandle,
+                        D3D12_GPU_DESCRIPTOR_HANDLE lightNormalAreaInHandle,
+                        D3D12_GPU_DESCRIPTOR_HANDLE reservoirYOutHandle,
+                        D3D12_GPU_DESCRIPTOR_HANDLE reservoirWeightOutHandle,
+                        D3D12_GPU_DESCRIPTOR_HANDLE lightSampleOutHandle,
+                        D3D12_GPU_DESCRIPTOR_HANDLE lightNormalAreaOutHandle,
+                        ConstantBuffer<PathtracerConstantBuffer> globalCB) {
   using namespace RootSignature::TemporalReuse;
   using namespace DefaultComputeShaderParams;
 
   ScopedTimer _prof(L"TemporalReuse", commandList);
 
-  m_CB->textureDim = XMUINT2(width, height);
-  m_CB->invTextureDim = XMFLOAT2(1.f / width, 1.f / height);
-  m_CBinstanceID = (m_CBinstanceID + 1) % m_CB.NumInstances();
-  m_CB.CopyStagingToGpu(m_CBinstanceID);
+  // Update the Constant Buffer.
+  {
+    m_CB->textureDim = XMUINT2(width, height);
+    m_CB->invTextureDim = XMFLOAT2(1.f / width, 1.f / height);
+    m_CBinstanceID = (m_CBinstanceID + 1) % m_CB.NumInstances();
+    m_CB.CopyStagingToGpu(m_CBinstanceID);
+  }
 
-  // Set pipeline state.
+  // Set pipeline state and root signature.
   {
     commandList->SetDescriptorHeaps(1, &descriptorHeap);
     commandList->SetComputeRootSignature(m_rootSignature.Get());
-    commandList->SetComputeRootDescriptorTable(Slot::InputNormal,
-                                               inputNormalResourceHandle);
-    commandList->SetComputeRootDescriptorTable(Slot::InputPosition,
-                                               inputPositionResourceHandle);
-    commandList->SetComputeRootDescriptorTable(
-        Slot::InputPartialDistanceDerivative,
-        inputPartialDistanceDerivativesResourceHandle);
-    commandList->SetComputeRootDescriptorTable(Slot::InputMotionVector,
-                                               inputMotionVectorResourceHandle);
-    commandList->SetComputeRootDescriptorTable(
-        Slot::InputPrevFrameHitPosition,
-        inputPrevFrameHitPositionResourceHandle);
-    commandList->SetComputeRootDescriptorTable(Slot::InputDepth,
-                                               inputDepthResourceHandle);
-    commandList->SetComputeRootDescriptorTable(
-        Slot::InputSurfaceAlbedo, inputSurfaceAlbedoResourceHandle);
-    commandList->SetComputeRootDescriptorTable(Slot::OutputNormal,
-                                               outputNormalResourceHandle);
-    commandList->SetComputeRootDescriptorTable(Slot::OutputPosition,
-                                               outputPositionResourceHandle);
-    commandList->SetComputeRootDescriptorTable(
-        Slot::OutputPartialDistanceDerivative,
-        outputPartialDistanceDerivativesResourceHandle);
-    commandList->SetComputeRootDescriptorTable(
-        Slot::OutputMotionVector, outputMotionVectorResourceHandle);
-    commandList->SetComputeRootDescriptorTable(
-        Slot::OutputPrevFrameHitPosition,
-        outputPrevFrameHitPositionResourceHandle);
-    commandList->SetComputeRootDescriptorTable(Slot::OutputDepth,
-                                               outputDepthResourceHandle);
-    commandList->SetComputeRootDescriptorTable(
-        Slot::OutputSurfaceAlbedo, outputSurfaceAlbedoResourceHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::GBufferPosition,
+                                               gBufferPositionHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::GBufferNormalDepth,
+                                               gBufferNormalDepthHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::AOSurfaceAlbedo,
+                                               aoSurfaceAlbedoHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::PrevReservoirYIn,
+                                               prevReservoirYInHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::PrevReservoirWeightIn,
+                                               prevReservoirWeightInHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::PrevLightSampleIn,
+                                               prevLightSampleInHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::PrevLightNormalAreaIn,
+                                               prevLightNormalAreaInHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::ReservoirYIn,
+                                               reservoirYInHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::ReservoirWeightIn,
+                                               reservoirWeightInHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::LightSampleIn,
+                                               lightSampleInHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::LightNormalAreaIn,
+                                               lightNormalAreaInHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::ReservoirYOut,
+                                               reservoirYOutHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::ReservoirWeightOut,
+                                               reservoirWeightOutHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::LightSampleOut,
+                                               lightSampleOutHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::LightNormalAreaOut,
+                                               lightNormalAreaOutHandle);
     commandList->SetComputeRootConstantBufferView(
         Slot::ConstantBuffer, m_CB.GpuVirtualAddress(m_CBinstanceID));
+    commandList->SetComputeRootConstantBufferView(
+        Slot::GlobalConstantBuffer,
+        globalCB.GpuVirtualAddress(globalCB->frameIndex));
     commandList->SetPipelineState(m_pipelineStateObject.Get());
   }
 
-  XMUINT2 groupSize(CeilDivide((width + 1) / 2 + 1, ThreadGroup::Width),
-                    CeilDivide((height + 1) / 2 + 1, ThreadGroup::Height));
-
-  // Dispatch.
-  commandList->Dispatch(groupSize.x, groupSize.y, 1);
+  // Dispatch compute shader.
+  {
+    XMUINT2 groupSize(CeilDivide(width, ThreadGroup::Width),
+                      CeilDivide(height, ThreadGroup::Height));
+    commandList->Dispatch(groupSize.x, groupSize.y, 1);
+  }
 }
 
 }  // namespace Reuse
