@@ -65,14 +65,18 @@ class Resolve {
            D3D12_GPU_DESCRIPTOR_HANDLE gBufferPositionHandle,
            D3D12_GPU_DESCRIPTOR_HANDLE gBufferNormalDepthHandle,
            D3D12_GPU_DESCRIPTOR_HANDLE aoSurfaceAlbedoHandle,
-           D3D12_GPU_DESCRIPTOR_HANDLE prevReservoirYInHandle,
-           D3D12_GPU_DESCRIPTOR_HANDLE prevReservoirWeightInHandle,
-           D3D12_GPU_DESCRIPTOR_HANDLE prevLightSampleInHandle,
-           D3D12_GPU_DESCRIPTOR_HANDLE prevLightNormalAreaInHandle,
+           D3D12_GPU_DESCRIPTOR_HANDLE materialIDInHandle,
            D3D12_GPU_DESCRIPTOR_HANDLE reservoirYInHandle,
            D3D12_GPU_DESCRIPTOR_HANDLE reservoirWeightInHandle,
            D3D12_GPU_DESCRIPTOR_HANDLE lightSampleInHandle,
-           D3D12_GPU_DESCRIPTOR_HANDLE lightNormalAreaInHandle);
+           D3D12_GPU_DESCRIPTOR_HANDLE lightNormalAreaInHandle,
+           D3D12_GPU_DESCRIPTOR_HANDLE prevReservoirYOutHandle,
+           D3D12_GPU_DESCRIPTOR_HANDLE prevReservoirWeightOutHandle,
+           D3D12_GPU_DESCRIPTOR_HANDLE prevLightSampleOutHandle,
+           D3D12_GPU_DESCRIPTOR_HANDLE prevLightNormalAreaOutHandle,
+           D3D12_GPU_DESCRIPTOR_HANDLE rtColorOutHandle,
+           StructuredBuffer<PrimitiveMaterialBuffer>& materialBuffer,
+           ConstantBuffer<PathtracerConstantBuffer>& globalCB);
 
  private:
   ComPtr<ID3D12RootSignature> m_rootSignature;

@@ -397,7 +397,7 @@ float3 Shade(
                     N,
                     V,
                     lightDir);
-                L += contribution * g_ReservoirWeight[DTid].x; // TODO: Move this to a seperate pass after spatial temporal reuse.
+                //L += contribution * g_ReservoirWeight[DTid].x; // TODO: Move this to a seperate pass after spatial temporal reuse.
             }
             else
             {

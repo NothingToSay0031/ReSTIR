@@ -63,6 +63,7 @@ private:
     void DownsampleGBuffer();
     void SpatialReuse();
     void TemporalReuse();
+    void Resolve(StructuredBuffer<PrimitiveMaterialBuffer>& materialBuffer);
 
     std::shared_ptr<DX::DeviceResources> m_deviceResources;
     std::shared_ptr<DX::DescriptorHeap> m_cbvSrvUavHeap;
@@ -105,6 +106,7 @@ private:
     GpuKernels::DownsampleGBufferDataBilateralFilter m_downsampleGBufferBilateralFilterKernel;
     Reuse::SpatialReuse m_spatialReuse;
     Reuse::TemporalReuse m_temporalReuse;
+    Reuse::Resolve m_resolve;
 
     bool m_isRecreateRaytracingResourcesRequested = false;
 };

@@ -347,7 +347,7 @@
     <FxCompile Include="SampleCore\Shaders\TemporalCS.hlsl">
       <Filter>Shaders\SampleCore</Filter>
     </FxCompile>
-    <FxCompile Include="Resolve.hlsl">
+    <FxCompile Include="SampleCore\Shaders\ResolveCS.hlsl">
       <Filter>Shaders\SampleCore</Filter>
     </FxCompile>
   </ItemGroup>
