@@ -46,6 +46,7 @@ enum Enum {
   ReservoirWeight,
   LightSample,
   LightNormalArea,
+  MaterialID,
   Count
 };
 }
@@ -247,6 +248,7 @@ void Pathtracer::CreateRootSignatures() {
     ranges[Slot::ReservoirWeight].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 24);
     ranges[Slot::LightSample].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 25);
     ranges[Slot::LightNormalArea].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 26);
+    ranges[Slot::MaterialID].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 27);
 
     ranges[Slot::EnvironmentMap].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
                                       12);  // 1 input environment map texture
@@ -279,6 +281,8 @@ void Pathtracer::CreateRootSignatures() {
         1, &ranges[Slot::LightSample]);
     rootParameters[Slot::LightNormalArea].InitAsDescriptorTable(
         1, &ranges[Slot::LightNormalArea]);
+    rootParameters[Slot::MaterialID].InitAsDescriptorTable(
+        1, &ranges[Slot::MaterialID]);
 
     rootParameters[Slot::AccelerationStructure].InitAsShaderResourceView(0);
     rootParameters[Slot::ConstantBuffer].InitAsConstantBufferView(0);
@@ -902,6 +906,10 @@ void Pathtracer::Run(Scene& scene) {
     resourceStateTracker->TransitionResource(
         &m_ReservoirResources[ReservoirResource::LightNormalArea],
         D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+    resourceStateTracker->TransitionResource(
+        &m_GBufferResources[GBufferResource::MaterialID],
+        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
   }
 
   // Bind inputs.
@@ -962,6 +970,11 @@ void Pathtracer::Run(Scene& scene) {
       m_ReservoirResources[ReservoirResource::LightNormalArea]
           .gpuDescriptorWriteAccess);
 
+  commandList->SetComputeRootDescriptorTable(
+      GlobalRootSignature::Slot::MaterialID,
+      m_GBufferResources[GBufferResource::MaterialID]
+          .gpuDescriptorWriteAccess);
+
   GpuResource* debugResources = Sample::g_debugOutput;
   commandList->SetComputeRootDescriptorTable(
       GlobalRootSignature::Slot::Debug1,
@@ -1011,6 +1024,10 @@ void Pathtracer::Run(Scene& scene) {
 
     resourceStateTracker->TransitionResource(
         &m_ReservoirResources[ReservoirResource::LightNormalArea],
+        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+    resourceStateTracker->TransitionResource(
+        &m_GBufferResources[GBufferResource::MaterialID],
         D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
   }
 
@@ -1135,6 +1152,12 @@ void Pathtracer::CreateTextureResources() {
         m_raytracingHeight, m_cbvSrvUavHeap.get(),
         &m_ReservoirResources[ReservoirResource::LightNormalArea],
         initialResourceState, L"Light Normal Area");
+
+    CreateRenderTargetResource(
+        device, DXGI_FORMAT_R32_UINT, m_raytracingWidth,
+        m_raytracingHeight, m_cbvSrvUavHeap.get(),
+        &m_GBufferResources[GBufferResource::MaterialID],
+        initialResourceState, L"MaterialID");
 
     CreateRenderTargetResource(
         device, DXGI_FORMAT_R16G16B16A16_FLOAT, m_raytracingWidth,

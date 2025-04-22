@@ -44,6 +44,7 @@ RWTexture2D<float4> g_ReservoirY : register(u23); // xyz: stored sample position
 RWTexture2D<float4> g_ReservoirWeight : register(u24); // x: W_Y, y: w_sum, z: M (number of samples), w: frame counter
 RWTexture2D<float4> g_LightSample : register(u25); // xyz: light color/intensity, w: not used
 RWTexture2D<float4> g_LightNormalArea : register(u26); // xyz: light normal, w: light area
+RWTexture2D<unsigned int> g_rtGBufferMaterialID : register(u27); // Material ID
 
 TextureCube<float4> g_texEnvironmentMap : register(t12);
 ConstantBuffer<PathtracerConstantBuffer> g_cb : register(b0);
@@ -343,7 +344,7 @@ float3 Shade(
     rayPayload.AOGBuffer.diffuseByte3 = NormalizedFloat3ToByte3(Kd);
     
     // Weighted Reservoir Sampling
-    if (rayPayload.isFirstHit && (!BxDF::IsBlack(material.Kd) || !BxDF::IsBlack(material.Ks)))
+    if (rayPayload.isFirstHit)
     {
         rayPayload.isFirstHit = false; // Reset the flag.
         uint2 DTid = DispatchRaysIndex().xy;
@@ -545,7 +546,7 @@ void MyRayGenShader_RadianceRay()
 
         g_rtGBufferNormalDepth[DTid] = EncodeNormalDepth(DecodeNormal(rayPayload.AOGBuffer.encodedNormal), linearDepth);
         g_rtGBufferDepth[DTid] = linearDepth;
-
+        g_rtGBufferMaterialID[DTid] = rayPayload.materialID;
         g_rtAOSurfaceAlbedo[DTid] = float4(Byte3ToNormalizedFloat3(rayPayload.AOGBuffer.diffuseByte3), 0);
     }
     else // No geometry hit.
@@ -553,7 +554,7 @@ void MyRayGenShader_RadianceRay()
         g_rtGBufferNormalDepth[DTid] = 0;
         g_rtGBufferDepth[DTid] = 0;
         g_rtAOSurfaceAlbedo[DTid] = 0;
-
+        g_rtGBufferMaterialID[DTid] = -1;
         // Invalidate the motion vector - set it to move well out of texture bounds.
         g_rtTextureSpaceMotionVector[DTid] = 1e3f;
         g_rtReprojectedNormalDepth[DTid] = 0;
@@ -651,7 +652,7 @@ void MyClosestHitShader_RadianceRay(inout PathtracerRayPayload rayPayload, in Bu
     rayPayload.AOGBuffer.tHit = RayTCurrent();
     rayPayload.AOGBuffer.hitPosition = hitPosition;
     rayPayload.AOGBuffer.encodedNormal = EncodeNormal(normal);
-
+    rayPayload.materialID = materialID;
     // Calculate hit position and normal for the current hit in the previous frame.
     // Note: This is redundant if the AOGBuffer gets overwritten in the Shade function. 
     // However, delaying this computation to post-Shade which casts additional rays results 

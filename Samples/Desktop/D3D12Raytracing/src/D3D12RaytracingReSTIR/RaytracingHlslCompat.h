@@ -104,7 +104,8 @@ struct PathtracerRayPayload
     XMFLOAT3 radiance;              // TODO encode
     AmbientOcclusionGBuffer AOGBuffer;
     BOOL isFirstHit;
-    XMFLOAT3 padding;
+    UINT materialID;
+    XMUINT2 padding;
 };
 
 struct ShadowRayPayload
