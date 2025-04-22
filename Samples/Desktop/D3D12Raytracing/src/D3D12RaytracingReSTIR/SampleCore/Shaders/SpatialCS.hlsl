@@ -93,7 +93,7 @@ void main(uint2 DTid : SV_DispatchThreadID)
     uint seed = initRand(pixelPos.x + pixelPos.y * width, frameIdx, 16);
     
     // Check if this is a valid position (not background)
-    if (worldPos.w == 0)
+    if (abs(worldPos.w) < 1e-5)
     {
         // Reset reservoir and exit
         g_ReservoirY_Out[pixelPos] = float4(0, 0, 0, 0);
@@ -153,7 +153,7 @@ void main(uint2 DTid : SV_DispatchThreadID)
         }
         
         // Skip if neighbor has no valid sample
-        if (neighborReservoirY.w == 0)
+        if (neighborReservoirY.w < 0.5f)
         {
             M_sum += (int) neighborReservoirWeight.z; // Add M value
             continue;
@@ -192,7 +192,7 @@ void main(uint2 DTid : SV_DispatchThreadID)
     M = M_sum;
     
     // Finalize the reservoir
-    if (reservoirY.w > 0)
+    if (reservoirY.w > 0.5f)
     {
         float3 vecToLight = reservoirY.xyz - worldPos.xyz;
         float distToLight = length(vecToLight);
@@ -208,7 +208,7 @@ void main(uint2 DTid : SV_DispatchThreadID)
             float p_hat_s = EvalP(dirToLight, albedo, lightSample.xyz, worldNormal);
             
             // Calculate the final weight
-            if (p_hat_s == 0)
+            if (abs(p_hat_s) < 1e-5)
             {
                 W_Y = 0;
             }
