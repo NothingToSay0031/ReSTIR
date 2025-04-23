@@ -44,7 +44,8 @@ RWTexture2D<float4> g_ReservoirY : register(u23); // xyz: stored sample position
 RWTexture2D<float4> g_ReservoirWeight : register(u24); // x: W_Y, y: w_sum, z: M (number of samples), w: frame counter
 RWTexture2D<float4> g_LightSample : register(u25); // xyz: light color/intensity, w: not used
 RWTexture2D<float4> g_LightNormalArea : register(u26); // xyz: light normal, w: light area
-RWTexture2D<unsigned int> g_rtGBufferMaterialID : register(u27); // Material ID
+RWTexture2D<float4> g_KdRoughness : register(u27);
+RWTexture2D<float4> g_KsType : register(u28);
 
 TextureCube<float4> g_texEnvironmentMap : register(t12);
 ConstantBuffer<PathtracerConstantBuffer> g_cb : register(b0);
@@ -387,6 +388,9 @@ float3 Shade(
             if (!isInShadow && dot(-lightDir, g_LightNormalArea[DTid].xyz) > 0 && p_hat > 0.0 && M > 0.0)
             {
                 g_ReservoirWeight[DTid].x = (w_sum / M) / p_hat; // Final weight W_Y = (w_sum / M) / p_hat(r.Y)
+                g_KdRoughness[DTid] = float4(Kd, roughness);
+                g_KsType[DTid] = float4(Ks, material.type);
+                /*
                 float3 contribution = BxDF::DirectLighting::Shade(
                     material.type,
                     Kd,
@@ -397,7 +401,8 @@ float3 Shade(
                     N,
                     V,
                     lightDir);
-                 //L += contribution * g_ReservoirWeight[DTid].x; // Resolve pass after spatial temporal reuse.
+                 L += contribution * g_ReservoirWeight[DTid].x; // Resolve pass after spatial temporal reuse.
+                */
             }
             else
             {
@@ -546,7 +551,6 @@ void MyRayGenShader_RadianceRay()
 
         g_rtGBufferNormalDepth[DTid] = EncodeNormalDepth(DecodeNormal(rayPayload.AOGBuffer.encodedNormal), linearDepth);
         g_rtGBufferDepth[DTid] = linearDepth;
-        g_rtGBufferMaterialID[DTid] = rayPayload.materialID;
         g_rtAOSurfaceAlbedo[DTid] = float4(Byte3ToNormalizedFloat3(rayPayload.AOGBuffer.diffuseByte3), 0);
     }
     else // No geometry hit.
@@ -554,7 +558,8 @@ void MyRayGenShader_RadianceRay()
         g_rtGBufferNormalDepth[DTid] = 0;
         g_rtGBufferDepth[DTid] = 0;
         g_rtAOSurfaceAlbedo[DTid] = 0;
-        g_rtGBufferMaterialID[DTid] = -1;
+        g_KdRoughness[DTid] = 0;
+        g_KsType[DTid] = 0;
         // Invalidate the motion vector - set it to move well out of texture bounds.
         g_rtTextureSpaceMotionVector[DTid] = 1e3f;
         g_rtReprojectedNormalDepth[DTid] = 0;

@@ -7,15 +7,14 @@
 // Input G-Buffer textures
 Texture2D<float4> g_rtGBufferPosition : register(t0); // World space position (xyz) + flag (w)
 Texture2D<NormalDepthTexFormat> g_rtGBufferNormalDepth : register(t1); // Normal (xyz) + depth (w)
-Texture2D<uint> g_MaterialID : register(t2);
+Texture2D<float4> g_KdRoughness : register(t2);
+Texture2D<float4> g_KsType : register(t3);
                                             
 // Current reservoirs
-Texture2D<float4> g_ReservoirY : register(t3); // xyz: stored sample position, w: hasValue flag (1.0 if valid)
-Texture2D<float4> g_ReservoirWeight : register(t4); // x: W_Y, y: w_sum, z: M (number of samples), w: frame counter
-Texture2D<float4> g_LightSample : register(t5); // xyz: light color/intensity, w: not used
-Texture2D<float4> g_LightNormalArea : register(t6); // xyz: light normal, w: light area
-
-StructuredBuffer<PrimitiveMaterialBuffer> g_materials : register(t7);
+Texture2D<float4> g_ReservoirY : register(t4); // xyz: stored sample position, w: hasValue flag (1.0 if valid)
+Texture2D<float4> g_ReservoirWeight : register(t5); // x: W_Y, y: w_sum, z: M (number of samples), w: frame counter
+Texture2D<float4> g_LightSample : register(t6); // xyz: light color/intensity, w: not used
+Texture2D<float4> g_LightNormalArea : register(t7); // xyz: light normal, w: light area
 
 // Output reservoirs
 RWTexture2D<float4> g_PrevReservoirY_Out : register(u0); // xyz: stored sample position, w: hasValue flag
@@ -46,17 +45,11 @@ void main(uint2 pixelPos : SV_DispatchThreadID)
     float pixelDepth;
     DecodeNormalDepth(normalDepth, worldNormal, pixelDepth);
     
-    UINT materialID = g_MaterialID[pixelPos];
-    PrimitiveMaterialBuffer material = g_materials[materialID];
-    float3 Kd = material.Kd;
-    float3 Ks = material.Ks;
-    float roughness = material.roughness;
-    if (materialID == 169)
-    {
-        Kd = (0, 1, 1);
-        Ks = (0, 0, 0);
-        roughness = 0.04;
-    }
+    MaterialType::Type type = (MaterialType::Type) (g_KsType[pixelPos].w);
+    float3 Kd = g_KdRoughness[pixelPos].xyz;
+    float3 Ks = g_KsType[pixelPos].xyz;
+    float roughness = g_KdRoughness[pixelPos].w;
+    
     float3 lightColor = g_LightSample[pixelPos].xyz;
     float3 sampledPosition = g_ReservoirY[pixelPos].xyz;
     float3 lightDir = normalize(sampledPosition - worldPos.xyz);
@@ -66,7 +59,7 @@ void main(uint2 pixelPos : SV_DispatchThreadID)
     
     if (dot(-lightDir, g_LightNormalArea[pixelPos].xyz) > 0 && g_ReservoirY[pixelPos].w > 0.5 && g_ReservoirWeight[pixelPos].z > 0.0)
     {
-        float3 contribution = BxDF::DirectLighting::Shade(material.type, Kd, Ks, lightColor, false, roughness, worldNormal, V, lightDir);
+        float3 contribution = BxDF::DirectLighting::Shade(type, Kd, Ks, lightColor, false, roughness, worldNormal, V, lightDir);
         g_rtColor[pixelPos].xyz += contribution * g_ReservoirWeight[pixelPos].x;
     }
     

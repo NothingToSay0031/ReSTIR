@@ -64,7 +64,8 @@ namespace GBufferResource {
         ReprojectedNormalDepth,
         Color,
         AOSurfaceAlbedo,
-				MaterialID,
+				KdRoughness,
+				KsType,
 		Count
 	};
 }

@@ -336,7 +336,8 @@ namespace Slot {
 enum Enum {
   GBufferPosition = 0,
   GBufferNormalDepth,
-  MaterialID,
+  KdRoughness,
+  KsType,
   ReservoirYIn,
   ReservoirWeightIn,
   LightSampleIn,
@@ -346,7 +347,6 @@ enum Enum {
   PrevLightSampleOut,
   PrevLightNormalAreaOut,
   RtColorOut,
-  MaterialBuffer,
   ConstantBuffer,
   GlobalConstantBuffer,
   Count
@@ -365,11 +365,12 @@ void Resolve::Initialize(ID3D12Device5* device, UINT frameCount,
     ranges[Slot::GBufferPosition].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
     ranges[Slot::GBufferNormalDepth].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
                                           1);
-    ranges[Slot::MaterialID].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2);
-    ranges[Slot::ReservoirYIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3);
-    ranges[Slot::ReservoirWeightIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 4);
-    ranges[Slot::LightSampleIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 5);
-    ranges[Slot::LightNormalAreaIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 6);
+    ranges[Slot::KdRoughness].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 2);
+    ranges[Slot::KsType].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 3);
+    ranges[Slot::ReservoirYIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 4);
+    ranges[Slot::ReservoirWeightIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 5);
+    ranges[Slot::LightSampleIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 6);
+    ranges[Slot::LightNormalAreaIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 7);
     ranges[Slot::PrevReservoirYOut].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
     ranges[Slot::PrevReservoirWeightOut].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
                                               1, 1);
@@ -383,7 +384,6 @@ void Resolve::Initialize(ID3D12Device5* device, UINT frameCount,
     for (int i = 0; i < Slot::Count - 1; ++i) {
       rootParameters[i].InitAsDescriptorTable(1, &ranges[i]);
     }
-    rootParameters[Slot::MaterialBuffer].InitAsShaderResourceView(7);
     rootParameters[Slot::ConstantBuffer].InitAsConstantBufferView(0);
     rootParameters[Slot::GlobalConstantBuffer].InitAsConstantBufferView(1);
 
@@ -415,7 +415,8 @@ void Resolve::Run(ID3D12GraphicsCommandList4* commandList, UINT width,
                   UINT height, ID3D12DescriptorHeap* descriptorHeap,
                   D3D12_GPU_DESCRIPTOR_HANDLE gBufferPositionHandle,
                   D3D12_GPU_DESCRIPTOR_HANDLE gBufferNormalDepthHandle,
-                  D3D12_GPU_DESCRIPTOR_HANDLE materialIDInHandle,
+                  D3D12_GPU_DESCRIPTOR_HANDLE kdRoughnessInHandle,
+                  D3D12_GPU_DESCRIPTOR_HANDLE ksTypeInHandle,
                   D3D12_GPU_DESCRIPTOR_HANDLE reservoirYInHandle,
                   D3D12_GPU_DESCRIPTOR_HANDLE reservoirWeightInHandle,
                   D3D12_GPU_DESCRIPTOR_HANDLE lightSampleInHandle,
@@ -447,8 +448,9 @@ void Resolve::Run(ID3D12GraphicsCommandList4* commandList, UINT width,
                                                gBufferPositionHandle);
     commandList->SetComputeRootDescriptorTable(Slot::GBufferNormalDepth,
                                                gBufferNormalDepthHandle);
-    commandList->SetComputeRootDescriptorTable(Slot::MaterialID,
-                                               materialIDInHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::KdRoughness,
+                                               kdRoughnessInHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::KsType, ksTypeInHandle);
     commandList->SetComputeRootDescriptorTable(Slot::ReservoirYIn,
                                                reservoirYInHandle);
     commandList->SetComputeRootDescriptorTable(Slot::ReservoirWeightIn,
@@ -469,14 +471,9 @@ void Resolve::Run(ID3D12GraphicsCommandList4* commandList, UINT width,
                                                rtColorOutHandle);
     commandList->SetComputeRootConstantBufferView(
         Slot::ConstantBuffer, m_CB.GpuVirtualAddress(m_CBinstanceID));
-
-    commandList->SetComputeRootShaderResourceView(
-        Slot::MaterialBuffer, materialBuffer.GpuVirtualAddress());
-
     commandList->SetComputeRootConstantBufferView(
         Slot::GlobalConstantBuffer,
         globalCB.GpuVirtualAddress(globalCB->frameIndex));
-
     commandList->SetPipelineState(m_pipelineStateObject.Get());
   }
 
