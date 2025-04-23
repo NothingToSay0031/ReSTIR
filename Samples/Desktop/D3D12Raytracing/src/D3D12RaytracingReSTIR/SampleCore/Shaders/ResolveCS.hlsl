@@ -28,12 +28,6 @@ RWTexture2D<float4> g_rtColor : register(u4);
 ConstantBuffer<TextureDimConstantBuffer> cb : register(b0);
 ConstantBuffer<PathtracerConstantBuffer> g_cb : register(b1);
 
-// Compute shader equivalent of WorldRayDirection()
-float3 CalculateWorldRayDirection(float3 worldPos, float3 cameraPos)
-{
-    return normalize(worldPos - cameraPos);
-}
-
 [numthreads(DefaultComputeShaderParams::ThreadGroup::Width, DefaultComputeShaderParams::ThreadGroup::Height, 1)]
 void main(uint2 pixelPos : SV_DispatchThreadID)
 {
@@ -54,22 +48,28 @@ void main(uint2 pixelPos : SV_DispatchThreadID)
     
     UINT materialID = g_MaterialID[pixelPos];
     PrimitiveMaterialBuffer material = g_materials[materialID];
-    
-    const float3 Kd = material.Kd;
-    const float3 Ks = material.Ks;
-    const float roughness = material.roughness;
+    float3 Kd = material.Kd;
+    float3 Ks = material.Ks;
+    float roughness = material.roughness;
+    if (materialID == 169)
+    {
+        Kd = (0, 1, 1);
+        Ks = (0, 0, 0);
+        roughness = 0.04;
+    }
     float3 lightColor = g_LightSample[pixelPos].xyz;
     float3 sampledPosition = g_ReservoirY[pixelPos].xyz;
     float3 lightDir = normalize(sampledPosition - worldPos.xyz);
     
     // Calculate world ray direction using camera position from constant buffer
-    float3 V = -CalculateWorldRayDirection(worldPos.xyz, g_cb.cameraPosition);
+    float3 V = normalize(g_cb.cameraPosition - worldPos.xyz);
     
     if (dot(-lightDir, g_LightNormalArea[pixelPos].xyz) > 0 && g_ReservoirY[pixelPos].w > 0.5 && g_ReservoirWeight[pixelPos].z > 0.0)
     {
         float3 contribution = BxDF::DirectLighting::Shade(material.type, Kd, Ks, lightColor, false, roughness, worldNormal, V, lightDir);
         g_rtColor[pixelPos].xyz += contribution * g_ReservoirWeight[pixelPos].x;
     }
+    
     g_PrevLightSample_Out[pixelPos] = g_LightSample[pixelPos];
     g_PrevLightNormalArea_Out[pixelPos] = g_LightNormalArea[pixelPos];
     g_PrevReservoirY_Out[pixelPos] = g_ReservoirY[pixelPos];

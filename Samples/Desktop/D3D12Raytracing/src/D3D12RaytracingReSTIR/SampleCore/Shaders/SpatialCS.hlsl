@@ -68,7 +68,6 @@ void main(uint2 DTid : SV_DispatchThreadID)
     if (pixelPos.x >= width || pixelPos.y >= height)
         return;
     
-    
     // Load current data
     float4 worldPos = g_rtGBufferPosition[pixelPos];
     

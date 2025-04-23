@@ -247,7 +247,7 @@ void Scene::LoadPBRTScene()
 #if !LOAD_ONLY_ONE_PBRT_MESH 
         {L"Car", "Assets\\car\\scene.pbrt"},
         {L"Dragon", "Assets\\dragon\\scene.pbrt"},
-        {L"House", "Assets\\house\\scene.pbrt"},
+        {L"House", "Assets\\house\\scene.pbrt"}, // "Assets\\scene.pbrt"
 
         {L"MirrorQuad", "Assets\\mirrorquad\\scene.pbrt"},
         {L"Quad", "Assets\\quad\\scene.pbrt"},

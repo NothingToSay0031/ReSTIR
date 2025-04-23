@@ -397,7 +397,7 @@ float3 Shade(
                     N,
                     V,
                     lightDir);
-                //L += contribution * g_ReservoirWeight[DTid].x; // TODO: Move this to a seperate pass after spatial temporal reuse.
+                 //L += contribution * g_ReservoirWeight[DTid].x; // Resolve pass after spatial temporal reuse.
             }
             else
             {
@@ -427,7 +427,7 @@ float3 Shade(
             float3 lightNormal = areaLight.normal;
         
             bool isInShadow = TraceShadowRayAndReportIfHit(hitPosition, lightDir, N, rayPayload);
-            float NdotL = max(0.0, dot(objectNormal, lightDir));
+            float NdotL = max(0.0, dot(N, lightDir));
             float LdotN = max(0.0, dot(lightNormal, -lightDir));
             if (!isInShadow && NdotL > 0.0 && LdotN > 0.0)
             {
