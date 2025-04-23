@@ -22,10 +22,10 @@ HongweiJi_ToriDunn_AnZhang
     - This will serve as the baseline for comparison with ReSTIR
 
 ### Implement ReSTIR
-- [x] Integrate ReSTIR into the path tracer mode (WIP)
+- [x] Integrate ReSTIR into the path tracer mode.
     - [x] Weighted Reservoir Sampling.
-    - [x] Spatial Reuse Pixel Shader.
-    - [x] Temporal Reuse Pixel Shader.
+    - [x] Spatial Reuse Shader.
+    - [x] Temporal Reuse Shader.
     - [x] Shade Pixel.
 
 ### Current Issues
