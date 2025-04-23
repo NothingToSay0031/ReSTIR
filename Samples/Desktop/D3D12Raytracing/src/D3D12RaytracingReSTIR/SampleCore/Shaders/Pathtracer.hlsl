@@ -349,6 +349,8 @@ float3 Shade(
     {
         rayPayload.isFirstHit = false; // Reset the flag.
         uint2 DTid = DispatchRaysIndex().xy;
+        g_KdRoughness[DTid] = float4(Kd, roughness);
+        g_KsType[DTid] = float4(Ks, material.type);
         g_ReservoirY[DTid] = float4(0, 0, 0, 0); // Reset the reservoir
         g_ReservoirWeight[DTid] = float4(0, 0, 0, g_cb.frameIndex); // Reset the reservoir weight
         g_LightSample[DTid] = float4(0, 0, 0, 0); // Reset the light sample
@@ -388,8 +390,6 @@ float3 Shade(
             if (!isInShadow && dot(-lightDir, g_LightNormalArea[DTid].xyz) > 0 && p_hat > 0.0 && M > 0.0)
             {
                 g_ReservoirWeight[DTid].x = (w_sum / M) / p_hat; // Final weight W_Y = (w_sum / M) / p_hat(r.Y)
-                g_KdRoughness[DTid] = float4(Kd, roughness);
-                g_KsType[DTid] = float4(Ks, material.type);
                 /*
                 float3 contribution = BxDF::DirectLighting::Shade(
                     material.type,
