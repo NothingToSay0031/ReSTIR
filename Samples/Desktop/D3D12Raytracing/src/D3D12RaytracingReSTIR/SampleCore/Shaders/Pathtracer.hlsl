@@ -690,6 +690,17 @@ void MyClosestHitShader_ShadowRay(inout ShadowRayPayload rayPayload, in BuiltInT
 void MyMissShader_RadianceRay(inout PathtracerRayPayload rayPayload)
 {
     rayPayload.radiance = g_texEnvironmentMap.SampleLevel(LinearWrapSampler, WorldRayDirection(), 0).xyz;
+    if (rayPayload.isFirstHit)
+    {
+        rayPayload.isFirstHit = false; // Reset the flag.
+        uint2 DTid = DispatchRaysIndex().xy;
+        g_KdRoughness[DTid] = float4(0, 0, 0, 0);
+        g_KsType[DTid] = float4(0, 0, 0, 0);
+        g_ReservoirY[DTid] = float4(0, 0, 0, 0); // Reset the reservoir
+        g_ReservoirWeight[DTid] = float4(0, 0, 0, g_cb.frameIndex); // Reset the reservoir weight
+        g_LightSample[DTid] = float4(0, 0, 0, 0); // Reset the light sample
+        g_LightNormalArea[DTid] = float4(0, 0, 0, 0); // Reset the light normal area
+    }
 }
 
 [shader("miss")]
