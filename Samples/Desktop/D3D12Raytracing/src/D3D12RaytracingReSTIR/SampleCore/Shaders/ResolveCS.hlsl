@@ -50,8 +50,9 @@ void main(uint2 pixelPos : SV_DispatchThreadID)
     float3 Ks = g_KsType[pixelPos].xyz;
     float roughness = g_KdRoughness[pixelPos].w;
     
-    float3 lightColor = g_LightSample[pixelPos].xyz;
     float3 sampledPosition = g_ReservoirY[pixelPos].xyz;
+    float distanceSquared = dot(sampledPosition - worldPos.xyz, sampledPosition - worldPos.xyz);
+    float3 lightColor = g_LightSample[pixelPos].xyz / distanceSquared;
     float3 lightDir = normalize(sampledPosition - worldPos.xyz);
     
     // Calculate world ray direction using camera position from constant buffer

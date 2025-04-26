@@ -370,7 +370,7 @@ float3 Shade(
             float LdotN = max(0.0, dot(lightNormal, -lightDir));
             if (NdotL > 0.0 && LdotN > 0.0)
             {
-                float3 radiance = areaLight.color * areaLight.intensity / distanceSquared;
+                float3 radiance = areaLight.color * areaLight.intensity;
                 float eval = EvalP(lightDir, Kd, radiance, objectNormal);
                 float wi = eval / p;
                 UpdateReservoir(DTid, sampledPosition, lightDir, distanceSquared, lightNormal, areaLight.area, radiance, wi, seed);
@@ -381,7 +381,7 @@ float3 Shade(
             float3 sampledPosition = g_ReservoirY[DTid].xyz;
             float3 lightDir = normalize(sampledPosition - hitPosition);
             float distanceSquared = dot(sampledPosition - hitPosition, sampledPosition - hitPosition);
-            float3 lightColor = g_LightSample[DTid].xyz;
+            float3 lightColor = g_LightSample[DTid].xyz / distanceSquared;
             float NdotL = max(0.0, dot(objectNormal, lightDir));
             float p_hat = EvalP(lightDir, Kd, lightColor, objectNormal);
             bool isInShadow = TraceShadowRayAndReportIfHit(hitPosition, lightDir, N, rayPayload);
