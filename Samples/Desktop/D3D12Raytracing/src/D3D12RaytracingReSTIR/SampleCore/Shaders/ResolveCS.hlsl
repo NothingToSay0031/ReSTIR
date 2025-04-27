@@ -28,44 +28,44 @@ ConstantBuffer<TextureDimConstantBuffer> cb : register(b0);
 ConstantBuffer<PathtracerConstantBuffer> g_cb : register(b1);
 
 [numthreads(DefaultComputeShaderParams::ThreadGroup::Width, DefaultComputeShaderParams::ThreadGroup::Height, 1)]
-void main(uint2 pixelPos : SV_DispatchThreadID)
+void main(uint2 DTid : SV_DispatchThreadID)
 {
     float width = cb.textureDim.x;
     float height = cb.textureDim.y;
     
     // Check if pixel is within bounds
-    if (pixelPos.x >= width || pixelPos.y >= height)
+    if (DTid.x >= width || DTid.y >= height)
         return;
     
     // Load current data
-    float4 worldPos = g_rtGBufferPosition[pixelPos];
+    float4 worldPos = g_rtGBufferPosition[DTid];
     
-    NormalDepthTexFormat normalDepth = g_rtGBufferNormalDepth[pixelPos];
+    NormalDepthTexFormat normalDepth = g_rtGBufferNormalDepth[DTid];
     float3 worldNormal;
     float pixelDepth;
     DecodeNormalDepth(normalDepth, worldNormal, pixelDepth);
     
-    MaterialType::Type type = (MaterialType::Type) (g_KsType[pixelPos].w);
-    float3 Kd = g_KdRoughness[pixelPos].xyz;
-    float3 Ks = g_KsType[pixelPos].xyz;
-    float roughness = g_KdRoughness[pixelPos].w;
+    MaterialType::Type type = (MaterialType::Type) (g_KsType[DTid].w);
+    float3 Kd = g_KdRoughness[DTid].xyz;
+    float3 Ks = g_KsType[DTid].xyz;
+    float roughness = g_KdRoughness[DTid].w;
     
-    float3 sampledPosition = g_ReservoirY[pixelPos].xyz;
+    float3 sampledPosition = g_ReservoirY[DTid].xyz;
     float distanceSquared = dot(sampledPosition - worldPos.xyz, sampledPosition - worldPos.xyz);
-    float3 lightColor = g_LightSample[pixelPos].xyz / distanceSquared;
+    float3 lightColor = g_LightSample[DTid].xyz / distanceSquared;
     float3 lightDir = normalize(sampledPosition - worldPos.xyz);
     
     // Calculate world ray direction using camera position from constant buffer
     float3 V = normalize(g_cb.cameraPosition - worldPos.xyz);
     
-    if (dot(-lightDir, g_LightNormalArea[pixelPos].xyz) > 0 && g_ReservoirY[pixelPos].w > 0.5 && g_ReservoirWeight[pixelPos].z > 0.0)
+    if (dot(-lightDir, g_LightNormalArea[DTid].xyz) > 0 && g_ReservoirY[DTid].w > 0.5 && g_ReservoirWeight[DTid].z > 0.0)
     {
         float3 contribution = BxDF::DirectLighting::Shade(type, Kd, Ks, lightColor, false, roughness, worldNormal, V, lightDir);
-        g_rtColor[pixelPos].xyz += contribution * g_ReservoirWeight[pixelPos].x;
+        g_rtColor[DTid].xyz += contribution * g_ReservoirWeight[DTid].x;
     }
     
-    g_PrevLightSample_Out[pixelPos] = g_LightSample[pixelPos];
-    g_PrevLightNormalArea_Out[pixelPos] = g_LightNormalArea[pixelPos];
-    g_PrevReservoirY_Out[pixelPos] = g_ReservoirY[pixelPos];
-    g_PrevReservoirWeight_Out[pixelPos] = g_ReservoirWeight[pixelPos];
+    g_PrevLightSample_Out[DTid] = g_LightSample[DTid];
+    g_PrevLightNormalArea_Out[DTid] = g_LightNormalArea[DTid];
+    g_PrevReservoirY_Out[DTid] = g_ReservoirY[DTid];
+    g_PrevReservoirWeight_Out[DTid] = g_ReservoirWeight[DTid];
 }

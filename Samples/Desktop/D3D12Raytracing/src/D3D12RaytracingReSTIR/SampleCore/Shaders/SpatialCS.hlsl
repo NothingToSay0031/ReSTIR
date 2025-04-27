@@ -36,26 +36,25 @@ float EvalP(float3 toLight, float3 diffuse, float3 radiance, float3 normal)
 [numthreads(DefaultComputeShaderParams::ThreadGroup::Width, DefaultComputeShaderParams::ThreadGroup::Height, 1)]
 void main(uint2 DTid : SV_DispatchThreadID)
 {
-    uint2 pixelPos = DTid.xy;
     float width = cb.textureDim.x;
     float height = cb.textureDim.y;
     // Check if pixel is within bounds
-    if (pixelPos.x >= width || pixelPos.y >= height)
+    if (DTid.x >= width || DTid.y >= height)
         return;
     
     // Load current data
-    float4 worldPos = g_rtGBufferPosition[pixelPos];
+    float4 worldPos = g_rtGBufferPosition[DTid];
     
-    NormalDepthTexFormat normalDepth = g_rtGBufferNormalDepth[pixelPos];
+    NormalDepthTexFormat normalDepth = g_rtGBufferNormalDepth[DTid];
     float3 worldNormal;
     float pixelDepth;
     DecodeNormalDepth(normalDepth, worldNormal, pixelDepth);
     
     // Load current reservoir state
-    float4 reservoirWeight = g_ReservoirWeight_In[pixelPos];
-    float4 reservoirY = g_ReservoirY_In[pixelPos];
-    float4 lightSample = g_LightSample_In[pixelPos];
-    float4 lightNormalArea = g_LightNormalArea_In[pixelPos];
+    float4 reservoirWeight = g_ReservoirWeight_In[DTid];
+    float4 reservoirY = g_ReservoirY_In[DTid];
+    float4 lightSample = g_LightSample_In[DTid];
+    float4 lightNormalArea = g_LightNormalArea_In[DTid];
     
     // Unpack current reservoir state
     float W_Y = reservoirWeight.x; // Current weight
@@ -64,16 +63,16 @@ void main(uint2 DTid : SV_DispatchThreadID)
     uint frameIdx = reservoirWeight.w; // Frame index
     
     // Initialize random seed
-    uint seed = RNG::SeedThread(pixelPos.x * 19349663 ^ pixelPos.y * 73856093 ^ frameIdx * 83492791);
+    uint seed = RNG::SeedThread(DTid.x * 19349663 ^ DTid.y * 73856093 ^ frameIdx * 83492791);
     
     // Check if this is a valid position (not background)
     if (abs(worldPos.w) < 1e-5)
     {
         // Reset reservoir and exit
-        g_ReservoirY_Out[pixelPos] = float4(0, 0, 0, 0);
-        g_ReservoirWeight_Out[pixelPos] = float4(0, 0, 0, frameIdx);
-        g_LightSample_Out[pixelPos] = float4(0, 0, 0, 0);
-        g_LightNormalArea_Out[pixelPos] = float4(0, 0, 0, 0);
+        g_ReservoirY_Out[DTid] = float4(0, 0, 0, 0);
+        g_ReservoirWeight_Out[DTid] = float4(0, 0, 0, frameIdx);
+        g_LightSample_Out[DTid] = float4(0, 0, 0, 0);
+        g_LightNormalArea_Out[DTid] = float4(0, 0, 0, 0);
         return;
     }
     
@@ -88,20 +87,20 @@ void main(uint2 DTid : SV_DispatchThreadID)
         float2 offset = float2(r * cos(theta), r * sin(theta));
         
         // Calculate pixel position
-        int2 neighborPixelPos = int2(pixelPos) + int2(offset);
+        int2 neighborDTid = int2(DTid) + int2(offset);
         
         // Check if neighbor is within screen bounds
-        if (neighborPixelPos.x < 0 || neighborPixelPos.x >= width ||
-            neighborPixelPos.y < 0 || neighborPixelPos.y >= height)
+        if (neighborDTid.x < 0 || neighborDTid.x >= width ||
+            neighborDTid.y < 0 || neighborDTid.y >= height)
         {
             continue;
         }
         
         // Fetch neighbor data from global memory
-        float4 neighborPos = g_rtGBufferPosition[neighborPixelPos];
-        float4 neighborReservoirY = g_ReservoirY_In[neighborPixelPos];
-        float4 neighborReservoirWeight = g_ReservoirWeight_In[neighborPixelPos];
-        float4 neighborLightSample = g_LightSample_In[neighborPixelPos];
+        float4 neighborPos = g_rtGBufferPosition[neighborDTid];
+        float4 neighborReservoirY = g_ReservoirY_In[neighborDTid];
+        float4 neighborReservoirWeight = g_ReservoirWeight_In[neighborDTid];
+        float4 neighborLightSample = g_LightSample_In[neighborDTid];
         
         // Skip if neighbor is background
         if (neighborPos.w == 0)
@@ -109,7 +108,7 @@ void main(uint2 DTid : SV_DispatchThreadID)
             continue;
         }
         
-        NormalDepthTexFormat neighborNormalDepth = g_rtGBufferNormalDepth[neighborPixelPos];
+        NormalDepthTexFormat neighborNormalDepth = g_rtGBufferNormalDepth[neighborDTid];
         float3 neighborNormal;
         float neighborDepth;
         DecodeNormalDepth(neighborNormalDepth, neighborNormal, neighborDepth);
@@ -140,7 +139,7 @@ void main(uint2 DTid : SV_DispatchThreadID)
         float3 dirToLight = normalize(neighborLightPosW - worldPos.xyz);
         
         // Get the material properties for the current pixel
-        float3 albedo = g_rtAOSurfaceAlbedo[pixelPos].xyz;
+        float3 albedo = g_rtAOSurfaceAlbedo[DTid].xyz;
         
         // Evaluate the PDF for the current pixel
         float p_hat = EvalP(dirToLight, albedo, neighborLightSample.xyz, worldNormal);
@@ -155,7 +154,7 @@ void main(uint2 DTid : SV_DispatchThreadID)
         if (w_sum > 0 && RNG::Random01(seed) < (w / w_sum))
         {
             lightSample = neighborLightSample;
-            lightNormalArea = g_LightNormalArea_In[neighborPixelPos];
+            lightNormalArea = g_LightNormalArea_In[neighborDTid];
             reservoirY = float4(neighborLightPosW, 1.0);
         }
         
@@ -176,7 +175,7 @@ void main(uint2 DTid : SV_DispatchThreadID)
             float3 dirToLight = vecToLight / distToLight;
             
             // Get the material properties for the current pixel
-            float3 albedo = g_rtAOSurfaceAlbedo[pixelPos].xyz;
+            float3 albedo = g_rtAOSurfaceAlbedo[DTid].xyz;
             
             // Evaluate the PDF for the current pixel with the selected sample
             float p_hat_s = EvalP(dirToLight, albedo, lightSample.xyz, worldNormal);
@@ -205,8 +204,8 @@ void main(uint2 DTid : SV_DispatchThreadID)
     }
     
     // Write results back to output textures
-    g_ReservoirY_Out[pixelPos] = reservoirY;
-    g_ReservoirWeight_Out[pixelPos] = float4(W_Y, w_sum, M, frameIdx);
-    g_LightSample_Out[pixelPos] = lightSample;
-    g_LightNormalArea_Out[pixelPos] = lightNormalArea;
+    g_ReservoirY_Out[DTid] = reservoirY;
+    g_ReservoirWeight_Out[DTid] = float4(W_Y, w_sum, M, frameIdx);
+    g_LightSample_Out[DTid] = lightSample;
+    g_LightNormalArea_Out[DTid] = lightNormalArea;
 }

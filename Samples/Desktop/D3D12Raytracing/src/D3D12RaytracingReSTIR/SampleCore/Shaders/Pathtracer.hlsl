@@ -295,18 +295,21 @@ float EvalP(float3 toLight, float3 diffuse, float3 radiance, float3 normal)
 }
 
 void UpdateReservoir(uint2 DTid, float3 sampledPosition, float3 lightDir, float distanceSquared,
-                    float3 lightNormal, float lightArea, float3 lightColor, float wi, inout uint seed)
+                    float3 lightNormal, float lightArea, float3 lightColor, float wi, inout uint seed,
+                    inout float w_sum, inout float M, inout float4 reservoirY,
+                    inout float4 lightSample, inout float4 lightNormalArea)
 {
-    g_ReservoirWeight[DTid].y += wi; // w_sum += w_i
-    g_ReservoirWeight[DTid].z += 1.0; // M += 1
-    float w_sum = g_ReservoirWeight[DTid].y;
+    w_sum += wi; // w_sum += w_i
+    M += 1.0; // M += 1
+    
     if (w_sum > 0.0 && RNG::Random01(seed) < (wi / w_sum))
     {
-        g_ReservoirY[DTid] = float4(sampledPosition, 1.0);
-        g_LightSample[DTid] = float4(lightColor, 1.0);
-        g_LightNormalArea[DTid] = float4(lightNormal, lightArea);
+        reservoirY = float4(sampledPosition, 1.0);
+        lightSample = float4(lightColor, 1.0);
+        lightNormalArea = float4(lightNormal, lightArea);
     }
 }
+
 float3 Shade(
     inout PathtracerRayPayload rayPayload,
     in float3 N,
@@ -333,15 +336,21 @@ float3 Shade(
     {
         rayPayload.isFirstHit = false; // Reset the flag.
         uint2 DTid = DispatchRaysIndex().xy;
+        
         g_KdRoughness[DTid] = float4(Kd, roughness);
         g_KsType[DTid] = float4(Ks, material.type);
-        g_ReservoirY[DTid] = float4(0, 0, 0, 0); // Reset the reservoir
-        g_ReservoirWeight[DTid] = float4(0, 0, 0, g_cb.frameIndex); // Reset the reservoir weight
-        g_LightSample[DTid] = float4(0, 0, 0, 0); // Reset the light sample
-        g_LightNormalArea[DTid] = float4(0, 0, 0, 0); // Reset the light normal area
+        
+        float4 reservoirY = float4(0, 0, 0, 0);
+        float w_sum = 0.0;
+        float M = 0.0;
+        float4 lightSample = float4(0, 0, 0, 0);
+        float4 lightNormalArea = float4(0, 0, 0, 0);
+        float finalWeight = 0.0;
+        
         uint seed = RNG::SeedThread(DTid.x * 73856093 ^ DTid.y * 19349663 ^ g_cb.frameIndex * 83492791);
-        const uint M = 32;
-        for (uint i = 0; i < M; i++)
+        const uint M_samples = 32;
+        
+        for (uint i = 0; i < M_samples; i++)
         {
             uint lightIndex = asuint(hitPosition.x * 1234.5678 + hitPosition.y * 5678.1234) % g_cb.numAreaLights;
             AreaLightData areaLight = g_cb.areaLights[lightIndex];
@@ -352,28 +361,30 @@ float3 Shade(
             float3 lightNormal = areaLight.normal;
             float NdotL = max(0.0, dot(objectNormal, lightDir));
             float LdotN = max(0.0, dot(lightNormal, -lightDir));
+            
             if (NdotL > 0.0 && LdotN > 0.0)
             {
                 float3 radiance = areaLight.color * areaLight.intensity;
                 float eval = EvalP(lightDir, Kd, radiance, objectNormal);
                 float wi = eval / p;
-                UpdateReservoir(DTid, sampledPosition, lightDir, distanceSquared, lightNormal, areaLight.area, radiance, wi, seed);
+                UpdateReservoir(DTid, sampledPosition, lightDir, distanceSquared, lightNormal,
+                               areaLight.area, radiance, wi, seed, w_sum, M,
+                               reservoirY, lightSample, lightNormalArea);
             }
         }
-        if (g_ReservoirY[DTid].w > 0.0)
+        
+        if (reservoirY.w > 0.0)
         {
-            float3 sampledPosition = g_ReservoirY[DTid].xyz;
+            float3 sampledPosition = reservoirY.xyz;
             float3 lightDir = normalize(sampledPosition - hitPosition);
-            float distanceSquared = dot(sampledPosition - hitPosition, sampledPosition - hitPosition);
-            float3 lightColor = g_LightSample[DTid].xyz;
+            float3 lightColor = lightSample.xyz;
             float NdotL = max(0.0, dot(objectNormal, lightDir));
             float p_hat = EvalP(lightDir, Kd, lightColor, objectNormal);
             bool isInShadow = TraceShadowRayAndReportIfHit(hitPosition, lightDir, N, rayPayload);
-            float M = g_ReservoirWeight[DTid].z;
-            float w_sum = g_ReservoirWeight[DTid].y;
-            if (!isInShadow && dot(-lightDir, g_LightNormalArea[DTid].xyz) > 0 && p_hat > 0.0 && M > 0.0)
+            
+            if (!isInShadow && dot(-lightDir, lightNormalArea.xyz) > 0 && p_hat > 0.0 && M > 0.0)
             {
-                g_ReservoirWeight[DTid].x = (w_sum / M) / p_hat; // Final weight W_Y = (w_sum / M) / p_hat(r.Y)
+                finalWeight = (w_sum / M) / p_hat; // Final weight W_Y = (w_sum / M) / p_hat(r.Y)
                 /*
                 float3 contribution = BxDF::DirectLighting::Shade(
                     material.type,
@@ -385,18 +396,15 @@ float3 Shade(
                     N,
                     V,
                     lightDir);
-                 L += contribution * g_ReservoirWeight[DTid].x; // Resolve pass after spatial temporal reuse.
+                L += contribution * finalWeight; // Resolve pass after spatial temporal reuse.
                 */
             }
-            else
-            {
-                g_ReservoirWeight[DTid].x = 0.0;
-            }
         }
-        else
-        {
-            g_ReservoirWeight[DTid].x = 0.0;
-        }
+        
+        g_ReservoirY[DTid] = reservoirY;
+        g_LightSample[DTid] = lightSample;
+        g_LightNormalArea[DTid] = lightNormalArea;
+        g_ReservoirWeight[DTid] = float4(finalWeight, w_sum, M, g_cb.frameIndex);
     }
     
     // Disable indirect lighting because sample lights cause fireflies. TOOD: Implement ReSTIR GI.
