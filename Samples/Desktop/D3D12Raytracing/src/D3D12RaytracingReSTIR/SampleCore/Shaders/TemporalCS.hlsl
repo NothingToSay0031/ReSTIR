@@ -62,14 +62,6 @@ uint2 GetPrevFramePixelPos(float4 worldPos, float width, float height, inout boo
 {
     // Project current world position to previous frame's clip space
     float4 prevClipPos = mul(float4(worldPos.xyz, 1.0), g_cb.prevFrameViewProj);
-    
-    // Early rejection for positions behind camera
-    if (prevClipPos.w <= 0.0)
-    {
-        inScreen = false;
-        return uint2(0, 0);
-    }
-    
     // Use reciprocal for division (often faster on GPUs)
     float invW = 1.0 / prevClipPos.w;
     float2 prevNDC = prevClipPos.xy * invW;
