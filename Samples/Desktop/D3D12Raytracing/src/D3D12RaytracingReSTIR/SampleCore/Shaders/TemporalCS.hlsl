@@ -31,22 +31,23 @@ RWTexture2D<float4> g_LightNormalArea_Out : register(u3); // xyz: light normal, 
 ConstantBuffer<TextureDimConstantBuffer> cb : register(b0);
 ConstantBuffer<PathtracerConstantBuffer> g_cb : register(b1);
 
-
+// Optimized version of EvalP function
 float EvalP(float3 toLight, float3 diffuse, float3 radiance, float3 normal)
 {
     float NdotL = max(0.0, dot(toLight, normal));
-    float3 brdf = diffuse * (1.0f / PI); // Lambertian
-    float3 color = brdf * radiance * NdotL;
+    // Combined diffuse BRDF calculation with radiance and NdotL in one step
+    float3 color = diffuse * radiance * NdotL * (1.0f / PI);
     return length(color); // scalar pdf target
 }
 
+// Optimized reservoir update function using inout parameters
 void UpdateReservoir(inout float4 y, inout float4 lightSample, inout float4 lightNormalArea,
                      inout float wSum, inout int M,
                      float4 candidateY, float4 candidateLightSample, float4 candidateLightNormalArea,
                      float w, inout uint seed)
 {
-    wSum = wSum + w;
-    M = M + 1;
+    wSum += w;
+    M += 1;
     if (wSum > 0 && RNG::Random01(seed) < (w / wSum))
     {
         y = candidateY;
@@ -55,19 +56,38 @@ void UpdateReservoir(inout float4 y, inout float4 lightSample, inout float4 ligh
     }
 }
 
+// Optimized function to find previous frame pixel position
+// Incorporates early rejection and uses fewer operations
 uint2 GetPrevFramePixelPos(float4 worldPos, float width, float height, inout bool inScreen)
 {
+    // Project current world position to previous frame's clip space
     float4 prevClipPos = mul(float4(worldPos.xyz, 1.0), g_cb.prevFrameViewProj);
-    float2 prevNDC = prevClipPos.xy / prevClipPos.w;
+    
+    // Early rejection for positions behind camera
+    if (prevClipPos.w <= 0.0)
+    {
+        inScreen = false;
+        return uint2(0, 0);
+    }
+    
+    // Use reciprocal for division (often faster on GPUs)
+    float invW = 1.0 / prevClipPos.w;
+    float2 prevNDC = prevClipPos.xy * invW;
+    
+    // Convert NDC to UV space directly
     float2 prevUV = prevNDC * float2(0.5, -0.5) + 0.5;
+    
+    // Convert to integer pixel coordinates
     int2 prevPixelPos = int2(prevUV * float2(width, height));
     
-    inScreen = (prevPixelPos.x >= 0 && prevPixelPos.x < width &&
-                prevPixelPos.y >= 0 && prevPixelPos.y < height);
+    // Check if within screen bounds using a single operation
+    inScreen = (prevPixelPos.x >= 0 && prevPixelPos.y >= 0 &&
+                prevPixelPos.x < width && prevPixelPos.y < height);
     
     return uint2(prevPixelPos);
 }
 
+// Simple inline function for position validity check
 bool IsValidPosition(float4 pos)
 {
     return pos.w != 0.0f;
@@ -76,45 +96,47 @@ bool IsValidPosition(float4 pos)
 [numthreads(DefaultComputeShaderParams::ThreadGroup::Width, DefaultComputeShaderParams::ThreadGroup::Height, 1)]
 void main(uint2 DTid : SV_DispatchThreadID)
 {
-    uint2 pixelPos = DTid.xy;
-    float width = cb.textureDim.x;
-    float height = cb.textureDim.y;
+    // Cache texture dimensions as locals
+    const float width = cb.textureDim.x;
+    const float height = cb.textureDim.y;
     
-    // Check if pixel is within bounds
-    if (pixelPos.x >= width || pixelPos.y >= height)
+    // Early boundary check
+    if (DTid.x >= width || DTid.y >= height)
         return;
     
-    // Load current data
-    float4 worldPos = g_rtGBufferPosition[pixelPos];
+    // Load current pixel data
+    float4 worldPos = g_rtGBufferPosition[DTid];
     
-    // Skip invalid positions
+    // Skip invalid positions and first frame - fast path with minimal texture operations
     if (!IsValidPosition(worldPos) || g_cb.frameIndex == 0)
     {
-        g_ReservoirY_Out[pixelPos] = g_ReservoirY_In[pixelPos];
-        g_ReservoirWeight_Out[pixelPos] = g_ReservoirWeight_In[pixelPos];
-        g_LightSample_Out[pixelPos] = g_LightSample_In[pixelPos];
-        g_LightNormalArea_Out[pixelPos] = g_LightNormalArea_In[pixelPos];
+        // Direct copy from input to output using the same indices
+        g_ReservoirY_Out[DTid] = g_ReservoirY_In[DTid];
+        g_ReservoirWeight_Out[DTid] = g_ReservoirWeight_In[DTid];
+        g_LightSample_Out[DTid] = g_LightSample_In[DTid];
+        g_LightNormalArea_Out[DTid] = g_LightNormalArea_In[DTid];
         return;
     }
     
-    NormalDepthTexFormat normalDepth = g_rtGBufferNormalDepth[pixelPos];
+    // Load current frame G-buffer data - only fetch what we need
+    NormalDepthTexFormat normalDepth = g_rtGBufferNormalDepth[DTid];
     float3 worldNormal;
     float pixelDepth;
     DecodeNormalDepth(normalDepth, worldNormal, pixelDepth);
     
-    float3 diffuse = g_rtAOSurfaceAlbedo[pixelPos].rgb;
+    float3 diffuse = g_rtAOSurfaceAlbedo[DTid].rgb;
     
     // Initialize random seed based on pixel position and frame index
-    uint seed = RNG::SeedThread(pixelPos.x * 19349663 ^ pixelPos.y * 83492791 ^ g_cb.frameIndex * 73856093);
-    // Load current frame reservoir data
-    float4 currentY = g_ReservoirY_In[pixelPos];
-    float4 currentWeight = g_ReservoirWeight_In[pixelPos]; // x: W_Y, y: w_sum, z: M, w: frame counter
-    float4 currentLightSample = g_LightSample_In[pixelPos];
-    float4 currentLightNormalArea = g_LightNormalArea_In[pixelPos];
+    uint seed = RNG::SeedThread(DTid.x * 19349663 ^ DTid.y * 83492791 ^ g_cb.frameIndex * 73856093);
     
-    float currentW = currentWeight.x;
-    float currentWsum = currentWeight.y;
-    int currentM = (int) currentWeight.z;
+    // Load current frame reservoir data at once to reduce texture fetches
+    float4 currentY = g_ReservoirY_In[DTid];
+    float4 currentWeight = g_ReservoirWeight_In[DTid]; // x: W_Y, y: w_sum, z: M, w: frame counter
+    float4 currentLightSample = g_LightSample_In[DTid];
+    float4 currentLightNormalArea = g_LightNormalArea_In[DTid];
+    
+    // Cache world position for repeated use
+    float3 worldPosXYZ = worldPos.xyz;
     
     // Find corresponding pixel in previous frame
     bool inScreen;
@@ -125,27 +147,39 @@ void main(uint2 DTid : SV_DispatchThreadID)
     {
         float4 prevWorldPos = g_rtGBufferPosition[prevPixelPos];
         
-        // Only combine if the previous pixel is valid and not too far from current position
-        if (IsValidPosition(prevWorldPos) && distance(prevWorldPos.xyz, worldPos.xyz) < 0.01f)
+        // Check if previous pixel is valid and close enough to current position
+        // Use squared distance to avoid expensive sqrt
+        float3 posDiff = prevWorldPos.xyz - worldPosXYZ;
+        float distSquared = dot(posDiff, posDiff);
+        
+        if (IsValidPosition(prevWorldPos) && distSquared < 0.0001f) // 0.01² = 0.0001
         {
-            // Load previous frame reservoir data
+            // Load previous frame reservoir data in one batch
             float4 prevY = g_PrevReservoirY_In[prevPixelPos];
             float4 prevWeight = g_PrevReservoirWeight_In[prevPixelPos];
             float4 prevLightSample = g_PrevLightSample_In[prevPixelPos];
             float4 prevLightNormalArea = g_PrevLightNormalArea_In[prevPixelPos];
+            
+            // Extract reservoir stats
+            float currentW = currentWeight.x;
+            float currentWsum = currentWeight.y;
+            int currentM = (int) currentWeight.z;
             
             float prevW = prevWeight.x;
             float prevWsum = prevWeight.y;
             int prevM = (int) prevWeight.z;
             
             // Limit number of samples in previous reservoir (prevent too much bias)
-            if (prevM > 20 * currentM)
+            // Use multiplication instead of division when possible
+            const float MAX_RATIO = 20.0f;
+            if (prevM > MAX_RATIO * currentM)
             {
-                prevWsum *= (20.0f * currentM) / prevM;
-                prevM = 20 * currentM;
+                float scaleFactor = MAX_RATIO * currentM / prevM;
+                prevWsum *= scaleFactor;
+                prevM = MAX_RATIO * currentM;
             }
             
-            // Create output reservoir - start with empty values
+            // Create output reservoir with local variables
             float4 outY = float4(0, 0, 0, 0);
             float4 outLightSample = float4(0, 0, 0, 0);
             float4 outLightNormalArea = float4(0, 0, 0, 0);
@@ -153,21 +187,24 @@ void main(uint2 DTid : SV_DispatchThreadID)
             float outW = 0.0f;
             int outM = 0;
             
-            // Only consider valid samples
+            // Only process valid samples (currentY.w > 0.5f)
             if (currentY.w > 0.5f)
             {
-                float3 toLight = normalize(currentY.xyz - worldPos.xyz);
-                float w1 = EvalP(toLight, diffuse, currentLightSample.xyz, worldNormal) *
-                          currentW * float(currentM);
+                float3 toLight = normalize(currentY.xyz - worldPosXYZ);
+                float pdfValue = EvalP(toLight, diffuse, currentLightSample.xyz, worldNormal);
+                float w1 = pdfValue * currentW * float(currentM);
+                
                 UpdateReservoir(outY, outLightSample, outLightNormalArea, outWsum, outM,
                                currentY, currentLightSample, currentLightNormalArea, w1, seed);
             }
             
+            // Only process valid samples (prevY.w > 0.5f)
             if (prevY.w > 0.5f)
             {
-                float3 toLight = normalize(prevY.xyz - worldPos.xyz);
-                float w2 = EvalP(toLight, diffuse, prevLightSample.xyz, worldNormal) *
-                          prevW * float(prevM);
+                float3 toLight = normalize(prevY.xyz - worldPosXYZ);
+                float pdfValue = EvalP(toLight, diffuse, prevLightSample.xyz, worldNormal);
+                float w2 = pdfValue * prevW * float(prevM);
+                
                 UpdateReservoir(outY, outLightSample, outLightNormalArea, outWsum, outM,
                                prevY, prevLightSample, prevLightNormalArea, w2, seed);
             }
@@ -178,32 +215,27 @@ void main(uint2 DTid : SV_DispatchThreadID)
             // Calculate new weight
             if (outY.w > 0.5f)
             {
-                float3 toLight = normalize(outY.xyz - worldPos.xyz);
+                float3 toLight = normalize(outY.xyz - worldPosXYZ);
                 float p_hat = EvalP(toLight, diffuse, outLightSample.xyz, worldNormal);
                 
-                if (p_hat > 0.0f)
-                {
-                    outW = (outWsum / outM) / p_hat;
-                }
-                else
-                {
-                    outW = 0.0f;
-                }
+                // Avoid division by zero using conditional operator
+                outW = (p_hat > 0.0f) ? ((outWsum / outM) / p_hat) : 0.0f;
             }
             
-            // Output the combined reservoir
-            g_ReservoirY_Out[pixelPos] = outY;
-            g_ReservoirWeight_Out[pixelPos] = float4(outW, outWsum, outM, currentWeight.w + 1);
-            g_LightSample_Out[pixelPos] = outLightSample;
-            g_LightNormalArea_Out[pixelPos] = outLightNormalArea;
+            // Output the combined reservoir in one batch
+            g_ReservoirY_Out[DTid] = outY;
+            g_ReservoirWeight_Out[DTid] = float4(outW, outWsum, outM, currentWeight.w + 1);
+            g_LightSample_Out[DTid] = outLightSample;
+            g_LightNormalArea_Out[DTid] = outLightNormalArea;
             
             return;
         }
     }
     
     // If we couldn't use previous frame data, just copy current frame data
-    g_ReservoirY_Out[pixelPos] = g_ReservoirY_In[pixelPos];
-    g_ReservoirWeight_Out[pixelPos] = g_ReservoirWeight_In[pixelPos];
-    g_LightSample_Out[pixelPos] = g_LightSample_In[pixelPos];
-    g_LightNormalArea_Out[pixelPos] = g_LightNormalArea_In[pixelPos];
+    // Use the same index (DTid) for both input and output to improve cache coherence
+    g_ReservoirY_Out[DTid] = currentY;
+    g_ReservoirWeight_Out[DTid] = currentWeight;
+    g_LightSample_Out[DTid] = currentLightSample;
+    g_LightNormalArea_Out[DTid] = currentLightNormalArea;
 }

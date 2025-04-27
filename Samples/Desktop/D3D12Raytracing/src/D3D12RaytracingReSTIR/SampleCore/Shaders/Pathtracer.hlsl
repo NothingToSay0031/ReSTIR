@@ -289,8 +289,8 @@ float3 SampleAreaLight(AreaLightData light, inout uint seed)
 float EvalP(float3 toLight, float3 diffuse, float3 radiance, float3 normal)
 {
     float NdotL = max(0.0, dot(toLight, normal));
-    float3 brdf = diffuse * (1.0f / 3.14159265f); // Lambertian
-    float3 color = brdf * radiance * NdotL;
+    // Combined diffuse BRDF calculation with radiance and NdotL in one step
+    float3 color = diffuse * radiance * NdotL * (1.0f / PI);
     return length(color); // scalar pdf target
 }
 
