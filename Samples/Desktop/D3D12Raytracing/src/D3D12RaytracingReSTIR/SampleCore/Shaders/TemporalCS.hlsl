@@ -2,6 +2,7 @@
 
 #include "RaytracingHlslCompat.h"
 #include "RaytracingShaderHelper.hlsli"
+#include "RandomNumberGenerator.hlsli"
 
 // Input G-Buffer textures
 Texture2D<float4> g_rtGBufferPosition : register(t0); // World space position (xyz) + flag (w)
@@ -39,32 +40,6 @@ float EvalP(float3 toLight, float3 diffuse, float3 radiance, float3 normal)
     return length(color); // scalar pdf target
 }
 
-// Permuted Congruential Generator (PCG)-style hash
-uint initRand(uint seed, uint frameCount, uint sampleIndex)
-{
-    uint state = seed;
-    state ^= frameCount * 747796405u;
-    state ^= sampleIndex * 2891336453u;
-    state ^= (state >> 16);
-    state *= 2246822519u;
-    state ^= (state >> 13);
-    state *= 3266489917u;
-    state ^= (state >> 16);
-    return state;
-}
-
-float nextRand(inout uint state)
-{
-    state ^= (state >> 17);
-    state *= 0xed5ad4bbU;
-    state ^= (state >> 11);
-    state *= 0xac4c1b51U;
-    state ^= (state >> 15);
-    state *= 0x31848babU;
-    state ^= (state >> 14);
-    return float(state & 0x00FFFFFFu) / float(0x01000000u); // [0, 1)
-}
-
 void UpdateReservoir(inout float4 y, inout float4 lightSample, inout float4 lightNormalArea,
                      inout float wSum, inout int M,
                      float4 candidateY, float4 candidateLightSample, float4 candidateLightNormalArea,
@@ -72,7 +47,7 @@ void UpdateReservoir(inout float4 y, inout float4 lightSample, inout float4 ligh
 {
     wSum = wSum + w;
     M = M + 1;
-    if (wSum > 0 && nextRand(seed) < (w / wSum))
+    if (wSum > 0 && RNG::Random01(seed) < (w / wSum))
     {
         y = candidateY;
         lightSample = candidateLightSample;
@@ -130,8 +105,7 @@ void main(uint2 DTid : SV_DispatchThreadID)
     float3 diffuse = g_rtAOSurfaceAlbedo[pixelPos].rgb;
     
     // Initialize random seed based on pixel position and frame index
-    uint seed = initRand(pixelPos.x + pixelPos.y * width, g_cb.frameIndex, 0);
-    
+    uint seed = RNG::SeedThread(pixelPos.x * 19349663 ^ pixelPos.y * 83492791 ^ g_cb.frameIndex * 73856093);
     // Load current frame reservoir data
     float4 currentY = g_ReservoirY_In[pixelPos];
     float4 currentWeight = g_ReservoirWeight_In[pixelPos]; // x: W_Y, y: w_sum, z: M, w: frame counter

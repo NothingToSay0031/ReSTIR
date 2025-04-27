@@ -20,6 +20,7 @@
 #include "RandomNumberGenerator.hlsli"
 #include "AnalyticalTextures.hlsli"
 #include "BxDF.hlsli"
+#include "RandomNumberGenerator.hlsli"
 
 //***************************************************************************
 //*****------ Shader resources bound via root signatures -------*************
@@ -268,28 +269,11 @@ void UpdateAOGBufferOnLargerDiffuseComponent(inout PathtracerRayPayload rayPaylo
         rayPayload.AOGBuffer.diffuseByte3 = NormalizedFloat3ToByte3(_diffuse);
     }
 }
-// Hash function to generate pseudo-random numbers
-float Hash(uint seed)
-{
-    seed = (seed ^ 61) ^ (seed >> 16);
-    seed *= 9;
-    seed = seed ^ (seed >> 4);
-    seed *= 0x27d4eb2d;
-    seed = seed ^ (seed >> 15);
-    return float(seed & 0xFFFFFF) / float(0x1000000); // Normalize to [0, 1)
-}
-
-// Generate a random float in the range [0, 1)
-float RandomFloat(inout uint seed)
-{
-    seed = seed * 1664525u + 1013904223u;
-    return Hash(seed);
-}
 
 float3 SampleAreaLight(AreaLightData light, inout uint seed)
 {
     // Generate random samples
-    float2 randomSample = float2(RandomFloat(seed), RandomFloat(seed));
+    float2 randomSample = float2(RNG::Random01inclusive(seed), RNG::Random01inclusive(seed));
 
     // Sample a point on the area light surface
     float3 tangent = normalize(cross(light.normal, float3(0, 1, 0)));
@@ -302,19 +286,6 @@ float3 SampleAreaLight(AreaLightData light, inout uint seed)
     return samplePoint;
 }
 
-void UpdateReservoir(uint2 DTid, float3 sampledPosition, float3 lightDir, float distanceSquared,
-                    float3 lightNormal, float lightArea, float3 lightColor, float wi, inout uint seed)
-{
-    g_ReservoirWeight[DTid].y += wi; // w_sum += w_i
-    g_ReservoirWeight[DTid].z += 1.0; // M += 1
-    float w_sum = g_ReservoirWeight[DTid].y;
-    if (w_sum > 0.0 && RandomFloat(seed) < (wi / w_sum))
-    {
-        g_ReservoirY[DTid] = float4(sampledPosition, 1.0); 
-        g_LightSample[DTid] = float4(lightColor, 1.0);
-        g_LightNormalArea[DTid] = float4(lightNormal, lightArea);
-    }
-}
 float EvalP(float3 toLight, float3 diffuse, float3 radiance, float3 normal)
 {
     float NdotL = max(0.0, dot(toLight, normal));
@@ -323,6 +294,19 @@ float EvalP(float3 toLight, float3 diffuse, float3 radiance, float3 normal)
     return length(color); // scalar pdf target
 }
 
+void UpdateReservoir(uint2 DTid, float3 sampledPosition, float3 lightDir, float distanceSquared,
+                    float3 lightNormal, float lightArea, float3 lightColor, float wi, inout uint seed)
+{
+    g_ReservoirWeight[DTid].y += wi; // w_sum += w_i
+    g_ReservoirWeight[DTid].z += 1.0; // M += 1
+    float w_sum = g_ReservoirWeight[DTid].y;
+    if (w_sum > 0.0 && RNG::Random01(seed) < (wi / w_sum))
+    {
+        g_ReservoirY[DTid] = float4(sampledPosition, 1.0);
+        g_LightSample[DTid] = float4(lightColor, 1.0);
+        g_LightNormalArea[DTid] = float4(lightNormal, lightArea);
+    }
+}
 float3 Shade(
     inout PathtracerRayPayload rayPayload,
     in float3 N,
@@ -355,7 +339,7 @@ float3 Shade(
         g_ReservoirWeight[DTid] = float4(0, 0, 0, g_cb.frameIndex); // Reset the reservoir weight
         g_LightSample[DTid] = float4(0, 0, 0, 0); // Reset the light sample
         g_LightNormalArea[DTid] = float4(0, 0, 0, 0); // Reset the light normal area
-        uint seed = DTid.x * 73856093 ^ DTid.y * 19349663 ^ g_cb.frameIndex * 83492791;
+        uint seed = RNG::SeedThread(DTid.x * 73856093 ^ DTid.y * 19349663 ^ g_cb.frameIndex * 83492791);
         const uint M = 32;
         for (uint i = 0; i < M; i++)
         {

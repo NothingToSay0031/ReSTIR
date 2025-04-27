@@ -2,6 +2,7 @@
 
 #include "RaytracingHlslCompat.h"
 #include "RaytracingShaderHelper.hlsli"
+#include "RandomNumberGenerator.hlsli"
 
 // Input G-Buffer textures
 Texture2D<float4> g_rtGBufferPosition : register(t0); // World space position (xyz) + flag (w)
@@ -29,32 +30,6 @@ float EvalP(float3 toLight, float3 diffuse, float3 radiance, float3 normal)
     float3 brdf = diffuse * (1.0f / PI); // Lambertian
     float3 color = brdf * radiance * NdotL;
     return length(color); // scalar pdf target
-}
-
-// Permuted Congruential Generator (PCG)-style hash
-uint initRand(uint seed, uint frameCount, uint sampleIndex)
-{
-    uint state = seed;
-    state ^= frameCount * 747796405u;
-    state ^= sampleIndex * 2891336453u;
-    state ^= (state >> 16);
-    state *= 2246822519u;
-    state ^= (state >> 13);
-    state *= 3266489917u;
-    state ^= (state >> 16);
-    return state;
-}
-
-float nextRand(inout uint state)
-{
-    state ^= (state >> 17);
-    state *= 0xed5ad4bbU;
-    state ^= (state >> 11);
-    state *= 0xac4c1b51U;
-    state ^= (state >> 15);
-    state *= 0x31848babU;
-    state ^= (state >> 14);
-    return float(state & 0x00FFFFFFu) / float(0x01000000u); // [0, 1)
 }
 
 // Compute shader entry point
@@ -86,10 +61,10 @@ void main(uint2 DTid : SV_DispatchThreadID)
     float W_Y = reservoirWeight.x; // Current weight
     float w_sum = reservoirWeight.y; // Sum of weights
     int M = (int) reservoirWeight.z; // Number of samples
-    float frameIdx = reservoirWeight.w; // Frame index
+    uint frameIdx = reservoirWeight.w; // Frame index
     
     // Initialize random seed
-    uint seed = initRand(pixelPos.x + pixelPos.y * width, frameIdx, 16);
+    uint seed = RNG::SeedThread(pixelPos.x * 19349663 ^ pixelPos.y * 73856093 ^ frameIdx * 83492791);
     
     // Check if this is a valid position (not background)
     if (abs(worldPos.w) < 1e-5)
@@ -108,8 +83,8 @@ void main(uint2 DTid : SV_DispatchThreadID)
     for (int i = 0; i < 5; i++)
     {
         // Generate a random point within the radius
-        float r = 10.0 * sqrt(nextRand(seed));
-        float theta = 2.0 * PI * nextRand(seed);
+        float r = 10.0 * sqrt(RNG::Random01inclusive(seed));
+        float theta = 2.0 * PI * RNG::Random01(seed);
         float2 offset = float2(r * cos(theta), r * sin(theta));
         
         // Calculate pixel position
@@ -177,7 +152,7 @@ void main(uint2 DTid : SV_DispatchThreadID)
         w_sum += w; // Update w_sum
         
         // Conditionally update the reservoir based on weight
-        if (w_sum > 0 && nextRand(seed) < (w / w_sum))
+        if (w_sum > 0 && RNG::Random01(seed) < (w / w_sum))
         {
             lightSample = neighborLightSample;
             lightNormalArea = g_LightNormalArea_In[neighborPixelPos];
