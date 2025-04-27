@@ -45,7 +45,7 @@ void main(uint2 DTid : SV_DispatchThreadID)
     float4 worldPos = g_rtGBufferPosition[DTid];
     
     // Early background check - return early to avoid unnecessary processing
-    if (worldPos.w != 0.0f)
+    if (worldPos.w == 0.0f)
     {
         // Batch reset and return
         uint frameIdx = g_ReservoirWeight_In[DTid].w; // Only read frame index
