@@ -381,7 +381,7 @@ float3 Shade(
             float3 sampledPosition = g_ReservoirY[DTid].xyz;
             float3 lightDir = normalize(sampledPosition - hitPosition);
             float distanceSquared = dot(sampledPosition - hitPosition, sampledPosition - hitPosition);
-            float3 lightColor = g_LightSample[DTid].xyz / distanceSquared;
+            float3 lightColor = g_LightSample[DTid].xyz;
             float NdotL = max(0.0, dot(objectNormal, lightDir));
             float p_hat = EvalP(lightDir, Kd, lightColor, objectNormal);
             bool isInShadow = TraceShadowRayAndReportIfHit(hitPosition, lightDir, N, rayPayload);
