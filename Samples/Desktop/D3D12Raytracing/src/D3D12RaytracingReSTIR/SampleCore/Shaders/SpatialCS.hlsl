@@ -38,8 +38,13 @@ float EvalP(float3 toLight, float3 diffuse, float3 radiance, float3 normal)
 [numthreads(DefaultComputeShaderParams::ThreadGroup::Width, DefaultComputeShaderParams::ThreadGroup::Height, 1)]
 void main(uint2 DTid : SV_DispatchThreadID)
 {
-    if ((g_cb.restirMode & 0x01) == 0)
+    if ((g_cb.restirMode & 0x01) == 0) {
+        g_ReservoirY_Out[DTid] = g_ReservoirY_In[DTid];
+        g_ReservoirWeight_Out[DTid] = g_ReservoirWeight_In[DTid];
+        g_LightSample_Out[DTid] = g_LightSample_In[DTid];
+        g_LightNormalArea_Out[DTid] = g_LightNormalArea_In[DTid];
         return; // Skip if not in spatial mode
+    }
     // Fast boundary check
     if (DTid.x >= cb.textureDim.x || DTid.y >= cb.textureDim.y)
         return;

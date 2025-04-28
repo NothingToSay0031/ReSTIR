@@ -66,8 +66,13 @@ bool IsValidPosition(float4 pos)
 [numthreads(DefaultComputeShaderParams::ThreadGroup::Width, DefaultComputeShaderParams::ThreadGroup::Height, 1)]
 void main(uint2 DTid : SV_DispatchThreadID)
 {
-    if ((g_cb.restirMode & 0x02) == 0)
+    if ((g_cb.restirMode & 0x02) == 0) {
+        g_ReservoirY_Out[DTid] = g_ReservoirY_In[DTid];
+        g_ReservoirWeight_Out[DTid] = g_ReservoirWeight_In[DTid];
+        g_LightSample_Out[DTid] = g_LightSample_In[DTid];
+        g_LightNormalArea_Out[DTid] = g_LightNormalArea_In[DTid];
         return; // Skip if not in temporal mode
+    }
     // Cache texture dimensions as locals
     const float width = cb.textureDim.x;
     const float height = cb.textureDim.y;
