@@ -21,6 +21,7 @@ Texture2D<float4> g_ReservoirY_In : register(t7); // xyz: stored sample position
 Texture2D<float4> g_ReservoirWeight_In : register(t8); // x: W_Y, y: w_sum, z: M (number of samples), w: frame counter
 Texture2D<float4> g_LightSample_In : register(t9); // xyz: light color/intensity, w: not used
 Texture2D<float4> g_LightNormalArea_In : register(t10); // xyz: light normal, w: light area
+Texture2D<float2> g_rtTextureSpaceMotionVector : register(t11); // Texture space motion vector (x: dx, y: dy)
 
 // Output reservoirs
 RWTexture2D<float4> g_ReservoirY_Out : register(u0); // xyz: stored sample position, w: hasValue flag
@@ -54,29 +55,6 @@ void UpdateReservoir(inout float4 y, inout float4 lightSample, inout float4 ligh
         lightSample = candidateLightSample;
         lightNormalArea = candidateLightNormalArea;
     }
-}
-
-// Optimized function to find previous frame pixel position
-// Incorporates early rejection and uses fewer operations
-uint2 GetPrevFramePixelPos(float4 worldPos, float width, float height, inout bool inScreen)
-{
-    // Project current world position to previous frame's clip space
-    float4 prevClipPos = mul(float4(worldPos.xyz, 1.0), g_cb.prevFrameViewProj);
-    // Use reciprocal for division (often faster on GPUs)
-    float invW = 1.0 / prevClipPos.w;
-    float2 prevNDC = prevClipPos.xy * invW;
-    
-    // Convert NDC to UV space directly
-    float2 prevUV = prevNDC * float2(0.5, -0.5) + 0.5;
-    
-    // Convert to integer pixel coordinates
-    int2 prevPixelPos = int2(prevUV * float2(width, height));
-    
-    // Check if within screen bounds using a single operation
-    inScreen = (prevPixelPos.x >= 0 && prevPixelPos.y >= 0 &&
-                prevPixelPos.x < width && prevPixelPos.y < height);
-    
-    return uint2(prevPixelPos);
 }
 
 // Simple inline function for position validity check
@@ -131,20 +109,19 @@ void main(uint2 DTid : SV_DispatchThreadID)
     float3 worldPosXYZ = worldPos.xyz;
     
     // Find corresponding pixel in previous frame
-    bool inScreen;
-    uint2 prevPixelPos = GetPrevFramePixelPos(worldPos, width, height, inScreen);
-    
+    float2 dxdy = g_rtTextureSpaceMotionVector[DTid];
+    uint2 dxdyScreen = uint2(dxdy.x * width, dxdy.y * height);
+    uint2 prevPixelPos = DTid + dxdyScreen;
     // If previous frame pixel is valid, combine the reservoirs
-    if (inScreen)
+    if (prevPixelPos.x < width && prevPixelPos.y < height && prevPixelPos.x >= 0 && prevPixelPos.y >= 0)
     {
-        float4 prevWorldPos = g_rtGBufferPosition[prevPixelPos];
+        // float4 prevWorldPos = g_rtGBufferPosition[prevPixelPos];
         
         // Check if previous pixel is valid and close enough to current position
-        // Use squared distance to avoid expensive sqrt
-        float3 posDiff = prevWorldPos.xyz - worldPosXYZ;
-        float distSquared = dot(posDiff, posDiff);
+        // float3 posDiff = prevWorldPos.xyz - worldPosXYZ;
+        // float distSquared = dot(posDiff, posDiff);
         
-        if (IsValidPosition(prevWorldPos) && distSquared < 0.0001f) // 0.01² = 0.0001
+        if (true)
         {
             // Load previous frame reservoir data in one batch
             float4 prevY = g_PrevReservoirY_In[prevPixelPos];

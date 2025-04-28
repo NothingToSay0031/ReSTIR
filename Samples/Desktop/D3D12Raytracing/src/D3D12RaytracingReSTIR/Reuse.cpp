@@ -181,6 +181,7 @@ enum Enum {
   ReservoirWeightOut,
   LightSampleOut,
   LightNormalAreaOut,
+  MotionVector,
   ConstantBuffer,
   GlobalConstantBuffer,
   Count
@@ -211,6 +212,8 @@ void TemporalReuse::Initialize(ID3D12Device5* device, UINT frameCount,
     ranges[Slot::LightSampleIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 9);
     ranges[Slot::LightNormalAreaIn].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
                                          10);
+    ranges[Slot::MotionVector].Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1,
+                                         11);
     ranges[Slot::ReservoirYOut].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1, 0);
     ranges[Slot::ReservoirWeightOut].Init(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 1,
                                           1);
@@ -267,6 +270,7 @@ void TemporalReuse::Run(ID3D12GraphicsCommandList4* commandList, UINT width,
                         D3D12_GPU_DESCRIPTOR_HANDLE reservoirWeightOutHandle,
                         D3D12_GPU_DESCRIPTOR_HANDLE lightSampleOutHandle,
                         D3D12_GPU_DESCRIPTOR_HANDLE lightNormalAreaOutHandle,
+                        D3D12_GPU_DESCRIPTOR_HANDLE motionVectorHandle,
                         ConstantBuffer<PathtracerConstantBuffer>& globalCB) {
   using namespace RootSignature::TemporalReuse;
   using namespace DefaultComputeShaderParams;
@@ -314,6 +318,8 @@ void TemporalReuse::Run(ID3D12GraphicsCommandList4* commandList, UINT width,
                                                lightSampleOutHandle);
     commandList->SetComputeRootDescriptorTable(Slot::LightNormalAreaOut,
                                                lightNormalAreaOutHandle);
+    commandList->SetComputeRootDescriptorTable(Slot::MotionVector,
+                                               motionVectorHandle);
     commandList->SetComputeRootConstantBufferView(
         Slot::ConstantBuffer, m_CB.GpuVirtualAddress(m_CBinstanceID));
     commandList->SetComputeRootConstantBufferView(

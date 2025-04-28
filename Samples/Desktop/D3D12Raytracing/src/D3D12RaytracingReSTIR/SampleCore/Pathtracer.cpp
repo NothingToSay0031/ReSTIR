@@ -1322,6 +1322,9 @@ void Pathtracer::TemporalReuse() {
   resourceStateTracker->TransitionResource(
       &m_ReservoirResources[ReservoirResource::LightNormalArea],
       D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+  resourceStateTracker->TransitionResource(
+      &m_GBufferResources[GBufferResource::MotionVector],
+      D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
   // Transition output resources to UNORDERED_ACCESS state.
   resourceStateTracker->TransitionResource(
@@ -1372,6 +1375,8 @@ void Pathtracer::TemporalReuse() {
           .gpuDescriptorWriteAccess,
       m_ReservoirResources[ReservoirResource::PingPongLightNormalArea]
           .gpuDescriptorWriteAccess,
+      m_GBufferResources[GBufferResource::MotionVector]
+          .gpuDescriptorReadAccess,
       m_CB);
 
   // Transition output resources back to NON_PIXEL_SHADER_RESOURCE state.

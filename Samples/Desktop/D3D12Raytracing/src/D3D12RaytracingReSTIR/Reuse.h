@@ -47,6 +47,7 @@ class TemporalReuse {
            D3D12_GPU_DESCRIPTOR_HANDLE reservoirWeightOutHandle,
            D3D12_GPU_DESCRIPTOR_HANDLE lightSampleOutHandle,
            D3D12_GPU_DESCRIPTOR_HANDLE lightNormalAreaOutHandle,
+           D3D12_GPU_DESCRIPTOR_HANDLE motionVectorHandle,
            ConstantBuffer<PathtracerConstantBuffer>& globalCB);
 
  private:
