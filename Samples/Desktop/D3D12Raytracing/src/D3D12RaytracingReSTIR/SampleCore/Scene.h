@@ -25,7 +25,10 @@
 namespace Scene_Args
 {
     extern NumVar CameraRotationDuration;
-}
+    extern IntVar WRS;
+    extern BoolVar Spatial;
+    extern BoolVar Temporal;
+    }
 
 class Scene
 {

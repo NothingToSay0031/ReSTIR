@@ -49,7 +49,10 @@ namespace Scene_Args
     NumVar CameraRotationDuration(L"Scene/Camera rotation time", 48.f, 1.f, 120.f, 1.f);
     BoolVar AnimateGrass(L"Scene/Animate grass", true);
     BoolVar AnimateScene(L"Scene/Animate scene", true);
-}
+    IntVar WRS(L"Scene/WRS Sample Number", 32, 0, 256, 1);
+    BoolVar Spatial(L"Scene/Spatial", true);
+    BoolVar Temporal(L"Scene/Temproal", true);
+    }
 
 Scene::Scene()
 {
@@ -131,6 +134,12 @@ void Scene::OnKeyDown(UINT8 key)
     case 'T':
         Scene_Args::AnimateScene.Bang();
         break;
+    case 'O':                // Spatial reuse enabled / disabled
+      Scene_Args::Spatial.Bang();
+      break;
+    case 'I':                // Temporal reuse enabled / disabled
+      Scene_Args::Temporal.Bang();
+      break;
     default:
         break;
     }

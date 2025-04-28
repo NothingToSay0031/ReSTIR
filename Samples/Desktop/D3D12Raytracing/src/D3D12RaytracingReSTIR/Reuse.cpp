@@ -38,6 +38,7 @@ enum Enum {
   LightSampleOut,
   LightNormalAreaOut,
   ConstantBuffer,
+  GlobalConstantBuffer,
   Count
 };
 }
@@ -72,6 +73,7 @@ void SpatialReuse::Initialize(ID3D12Device5* device, UINT frameCount,
     }
 
     rootParameters[Slot::ConstantBuffer].InitAsConstantBufferView(0);
+    rootParameters[Slot::GlobalConstantBuffer].InitAsConstantBufferView(1);
 
     CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc(ARRAYSIZE(rootParameters),
                                                   rootParameters);
@@ -110,7 +112,8 @@ void SpatialReuse::Run(ID3D12GraphicsCommandList4* commandList,
                        D3D12_GPU_DESCRIPTOR_HANDLE reservoirYOutHandle,
                        D3D12_GPU_DESCRIPTOR_HANDLE reservoirWeightOutHandle,
                        D3D12_GPU_DESCRIPTOR_HANDLE lightSampleOutHandle,
-                       D3D12_GPU_DESCRIPTOR_HANDLE lightNormalAreaOutHandle) {
+                       D3D12_GPU_DESCRIPTOR_HANDLE lightNormalAreaOutHandle,
+                       ConstantBuffer<PathtracerConstantBuffer>& globalCB) {
   using namespace RootSignature::SpatialReuse;
   using namespace DefaultComputeShaderParams;
 
@@ -151,6 +154,9 @@ void SpatialReuse::Run(ID3D12GraphicsCommandList4* commandList,
                                                lightNormalAreaOutHandle);
     commandList->SetComputeRootConstantBufferView(
         Slot::ConstantBuffer, m_CB.GpuVirtualAddress(m_CBinstanceID));
+    commandList->SetComputeRootConstantBufferView(
+        Slot::GlobalConstantBuffer,
+        globalCB.GpuVirtualAddress(globalCB->frameIndex));
     commandList->SetPipelineState(m_pipelineStateObject.Get());
   }
   // Dispatch.

@@ -348,8 +348,7 @@ float3 Shade(
         float finalWeight = 0.0;
         
         uint seed = RNG::SeedThread(DTid.x * 73856093 ^ DTid.y * 19349663 ^ g_cb.frameIndex * 83492791);
-        const uint M_samples = 32;
-        
+        const uint M_samples = g_cb.numWrsSamples;
         for (uint i = 0; i < M_samples; i++)
         {
             uint lightIndex = asuint(hitPosition.x * 1234.5678 + hitPosition.y * 5678.1234) % g_cb.numAreaLights;

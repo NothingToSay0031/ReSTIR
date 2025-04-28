@@ -761,7 +761,10 @@ void Pathtracer::SetCamera(const GameCore::Camera& camera) {
 void Pathtracer::UpdateConstantBuffer(Scene& scene) {
   XMStoreFloat3(&m_CB->lightPosition, scene.m_lightPosition);
   m_CB->lightColor = scene.m_lightColor;
-
+  int mode = Scene_Args::Spatial ? 1 : 0;
+  mode |= Scene_Args::Temporal ? 2 : 0;
+  m_CB->restirMode = mode;
+  m_CB->numWrsSamples = Scene_Args::WRS;
   auto GenerateAreaLights = [&](UINT numLights, const XMFLOAT3& centerPosition,
                                 float radius, const XMFLOAT3& color,
                                 float intensity, float width, float height) {
@@ -1461,7 +1464,8 @@ void Pathtracer::SpatialReuse() {
       m_ReservoirResources[ReservoirResource::LightSample]
           .gpuDescriptorWriteAccess,  // lightSampleOutHandle
       m_ReservoirResources[ReservoirResource::LightNormalArea]
-          .gpuDescriptorWriteAccess  // lightNormalAreaOutHandle
+          .gpuDescriptorWriteAccess,  // lightNormalAreaOutHandle
+    m_CB
   );
   resourceStateTracker->TransitionResource(
       &m_ReservoirResources[ReservoirResource::ReservoirY],

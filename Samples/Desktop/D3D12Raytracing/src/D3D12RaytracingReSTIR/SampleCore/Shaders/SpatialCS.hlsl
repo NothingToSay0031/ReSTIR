@@ -23,6 +23,7 @@ RWTexture2D<float4> g_LightNormalArea_Out : register(u3); // xyz: light normal, 
 
 // Constant buffer
 ConstantBuffer<TextureDimConstantBuffer> cb : register(b0);
+ConstantBuffer<PathtracerConstantBuffer> g_cb : register(b1);
 
 // Optimized version of EvalP function
 float EvalP(float3 toLight, float3 diffuse, float3 radiance, float3 normal)
@@ -37,6 +38,8 @@ float EvalP(float3 toLight, float3 diffuse, float3 radiance, float3 normal)
 [numthreads(DefaultComputeShaderParams::ThreadGroup::Width, DefaultComputeShaderParams::ThreadGroup::Height, 1)]
 void main(uint2 DTid : SV_DispatchThreadID)
 {
+    if ((g_cb.restirMode & 0x01) == 0)
+        return; // Skip if not in spatial mode
     // Fast boundary check
     if (DTid.x >= cb.textureDim.x || DTid.y >= cb.textureDim.y)
         return;

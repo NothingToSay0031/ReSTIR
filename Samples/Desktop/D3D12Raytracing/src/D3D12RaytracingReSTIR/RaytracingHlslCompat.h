@@ -232,7 +232,9 @@ struct PathtracerConstantBuffer
     AreaLightData areaLights[32];
 
     UINT frameIndex;
-    XMUINT3 padding;
+    UINT restirMode;
+    UINT numWrsSamples;
+    UINT padding;
 };
 
 struct RTAOConstantBuffer
