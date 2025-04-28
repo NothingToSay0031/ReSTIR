@@ -85,7 +85,7 @@ void main(uint2 DTid : SV_DispatchThreadID)
     float4 worldPos = g_rtGBufferPosition[DTid];
     
     // Skip invalid positions and first frame - fast path with minimal texture operations
-    if (!IsValidPosition(worldPos) || g_cb.frameIndex == 0)
+    if (!IsValidPosition(worldPos))
     {
         // Direct copy from input to output using the same indices
         g_ReservoirY_Out[DTid] = g_ReservoirY_In[DTid];
@@ -122,90 +122,91 @@ void main(uint2 DTid : SV_DispatchThreadID)
     // If previous frame pixel is valid, combine the reservoirs
     if (prevPixelPos.x < width && prevPixelPos.y < height && prevPixelPos.x >= 0 && prevPixelPos.y >= 0)
     {
-        // float4 prevWorldPos = g_rtGBufferPosition[prevPixelPos];
+        // TODO: Check if previous pixel is valid and close enough to current position
         
-        // Check if previous pixel is valid and close enough to current position
-        // float3 posDiff = prevWorldPos.xyz - worldPosXYZ;
-        // float distSquared = dot(posDiff, posDiff);
-        
-        if (true)
+        // Load previous frame reservoir data in one batch
+        float4 prevY = g_PrevReservoirY_In[prevPixelPos];
+        if (prevY.w == 0)
         {
-            // Load previous frame reservoir data in one batch
-            float4 prevY = g_PrevReservoirY_In[prevPixelPos];
-            float4 prevWeight = g_PrevReservoirWeight_In[prevPixelPos];
-            float4 prevLightSample = g_PrevLightSample_In[prevPixelPos];
-            float4 prevLightNormalArea = g_PrevLightNormalArea_In[prevPixelPos];
-            
-            // Extract reservoir stats
-            float currentW = currentWeight.x;
-            float currentWsum = currentWeight.y;
-            int currentM = (int) currentWeight.z;
-            
-            float prevW = prevWeight.x;
-            float prevWsum = prevWeight.y;
-            int prevM = (int) prevWeight.z;
-            
-            // Limit number of samples in previous reservoir (prevent too much bias)
-            // Use multiplication instead of division when possible
-            const float MAX_RATIO = 20.0f;
-            if (prevM > MAX_RATIO * currentM)
-            {
-                float scaleFactor = MAX_RATIO * currentM / prevM;
-                prevWsum *= scaleFactor;
-                prevM = MAX_RATIO * currentM;
-            }
-            
-            // Create output reservoir with local variables
-            float4 outY = float4(0, 0, 0, 0);
-            float4 outLightSample = float4(0, 0, 0, 0);
-            float4 outLightNormalArea = float4(0, 0, 0, 0);
-            float outWsum = 0.0f;
-            float outW = 0.0f;
-            int outM = 0;
-            
-            // Only process valid samples (currentY.w > 0.5f)
-            if (currentY.w > 0.5f)
-            {
-                float3 toLight = normalize(currentY.xyz - worldPosXYZ);
-                float pdfValue = EvalP(toLight, diffuse, currentLightSample.xyz, worldNormal);
-                float w1 = pdfValue * currentW * float(currentM);
-                
-                UpdateReservoir(outY, outLightSample, outLightNormalArea, outWsum, outM,
-                               currentY, currentLightSample, currentLightNormalArea, w1, seed);
-            }
-            
-            // Only process valid samples (prevY.w > 0.5f)
-            if (prevY.w > 0.5f)
-            {
-                float3 toLight = normalize(prevY.xyz - worldPosXYZ);
-                float pdfValue = EvalP(toLight, diffuse, prevLightSample.xyz, worldNormal);
-                float w2 = pdfValue * prevW * float(prevM);
-                
-                UpdateReservoir(outY, outLightSample, outLightNormalArea, outWsum, outM,
-                               prevY, prevLightSample, prevLightNormalArea, w2, seed);
-            }
-            
-            // Update combined reservoir stats
-            outM = currentM + prevM;
-            
-            // Calculate new weight
-            if (outY.w > 0.5f)
-            {
-                float3 toLight = normalize(outY.xyz - worldPosXYZ);
-                float p_hat = EvalP(toLight, diffuse, outLightSample.xyz, worldNormal);
-                
-                // Avoid division by zero using conditional operator
-                outW = (p_hat > 0.0f) ? ((outWsum / outM) / p_hat) : 0.0f;
-            }
-            
-            // Output the combined reservoir in one batch
-            g_ReservoirY_Out[DTid] = outY;
-            g_ReservoirWeight_Out[DTid] = float4(outW, outWsum, outM, currentWeight.w + 1);
-            g_LightSample_Out[DTid] = outLightSample;
-            g_LightNormalArea_Out[DTid] = outLightNormalArea;
-            
+            g_ReservoirY_Out[DTid] = currentY;
+            g_ReservoirWeight_Out[DTid] = currentWeight;
+            g_LightSample_Out[DTid] = currentLightSample;
+            g_LightNormalArea_Out[DTid] = currentLightNormalArea;
             return;
         }
+        float4 prevWeight = g_PrevReservoirWeight_In[prevPixelPos];
+        float4 prevLightSample = g_PrevLightSample_In[prevPixelPos];
+        float4 prevLightNormalArea = g_PrevLightNormalArea_In[prevPixelPos];
+            
+        // Extract reservoir stats
+        float currentW = currentWeight.x;
+        float currentWsum = currentWeight.y;
+        int currentM = (int) currentWeight.z;
+            
+        float prevW = prevWeight.x;
+        float prevWsum = prevWeight.y;
+        int prevM = (int) prevWeight.z;
+            
+        // Limit number of samples in previous reservoir (prevent too much bias)
+        // Use multiplication instead of division when possible
+        const float MAX_RATIO = 20.0f;
+        if (prevM > MAX_RATIO * currentM)
+        {
+            float scaleFactor = MAX_RATIO * currentM / prevM;
+            prevWsum *= scaleFactor;
+            prevM = MAX_RATIO * currentM;
+        }
+            
+        // Create output reservoir with local variables
+        float4 outY = float4(0, 0, 0, 0);
+        float4 outLightSample = float4(0, 0, 0, 0);
+        float4 outLightNormalArea = float4(0, 0, 0, 0);
+        float outWsum = 0.0f;
+        float outW = 0.0f;
+        int outM = 0;
+            
+        // Only process valid samples (currentY.w > 0.5f)
+        if (currentY.w > 0.5f)
+        {
+            float3 toLight = normalize(currentY.xyz - worldPosXYZ);
+            float pdfValue = EvalP(toLight, diffuse, currentLightSample.xyz, worldNormal);
+            float w1 = pdfValue * currentW * float(currentM);
+                
+            UpdateReservoir(outY, outLightSample, outLightNormalArea, outWsum, outM,
+                            currentY, currentLightSample, currentLightNormalArea, w1, seed);
+        }
+            
+        // Only process valid samples (prevY.w > 0.5f)
+        if (prevY.w > 0.5f)
+        {
+            float3 toLight = normalize(prevY.xyz - worldPosXYZ);
+            float pdfValue = EvalP(toLight, diffuse, prevLightSample.xyz, worldNormal);
+            float w2 = pdfValue * prevW * float(prevM);
+                
+            UpdateReservoir(outY, outLightSample, outLightNormalArea, outWsum, outM,
+                            prevY, prevLightSample, prevLightNormalArea, w2, seed);
+        }
+            
+        // Update combined reservoir stats
+        outM = currentM + prevM;
+            
+        // Calculate new weight
+        if (outY.w > 0.5f)
+        {
+            float3 toLight = normalize(outY.xyz - worldPosXYZ);
+            float p_hat = EvalP(toLight, diffuse, outLightSample.xyz, worldNormal);
+                
+            // Avoid division by zero using conditional operator
+            outW = (p_hat > 0.0f) ? ((outWsum / outM) / p_hat) : 0.0f;
+        }
+            
+        // Output the combined reservoir in one batch
+        g_ReservoirY_Out[DTid] = outY;
+        g_ReservoirWeight_Out[DTid] = float4(outW, outWsum, outM, currentWeight.w);
+        g_LightSample_Out[DTid] = outLightSample;
+        g_LightNormalArea_Out[DTid] = outLightNormalArea;
+            
+        return;
     }
     
     // If we couldn't use previous frame data, just copy current frame data

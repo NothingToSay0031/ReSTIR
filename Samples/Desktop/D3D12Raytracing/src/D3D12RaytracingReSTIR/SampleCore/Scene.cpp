@@ -51,7 +51,7 @@ namespace Scene_Args
     BoolVar AnimateScene(L"Scene/Animate scene", true);
     IntVar WRS(L"Scene/WRS Sample Number", 32, 0, 256, 1);
     BoolVar Spatial(L"Scene/Spatial", true);
-    BoolVar Temporal(L"Scene/Temproal", true);
+    BoolVar Temporal(L"Scene/Temporal", true);
     }
 
 Scene::Scene()
