@@ -419,10 +419,12 @@ float3 Shade(
         
             float3 sampledPosition = SampleAreaLight(areaLight, seed);
             float3 lightDir = normalize(sampledPosition - hitPosition);
-            float distanceSquared = dot(sampledPosition - hitPosition, sampledPosition - hitPosition);
+            float lengthLight = length(sampledPosition - hitPosition);
+            float distanceSquared = lengthLight * lengthLight;
             float3 lightNormal = areaLight.normal;
         
-            bool isInShadow = TraceShadowRayAndReportIfHit(hitPosition, lightDir, N, rayPayload);
+            bool isHit = TraceShadowRayAndReportIfHit(hitPosition, lightDir, N, rayPayload);
+            bool isInShadow = isHit && rayPayload.AOGBuffer.tHit < lengthLight;
             float NdotL = max(0.0, dot(N, lightDir));
             float LdotN = max(0.0, dot(lightNormal, -lightDir));
             if (!isInShadow && NdotL > 0.0 && LdotN > 0.0)
