@@ -135,9 +135,6 @@ void main(uint2 DTid : SV_DispatchThreadID)
             
         if (!isValidNeighbor)
         {
-            // Even if not a valid neighbor, we still need to add its M value
-            float4 neighborReservoirWeight = g_ReservoirWeight_In[neighborDTid];
-            M_sum += (int) neighborReservoirWeight.z;
             continue;
         }
         
