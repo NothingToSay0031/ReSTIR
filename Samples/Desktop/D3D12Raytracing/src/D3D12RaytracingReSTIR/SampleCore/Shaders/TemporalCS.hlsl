@@ -105,7 +105,6 @@ void main(uint2 DTid : SV_DispatchThreadID)
     
     // Initialize random seed based on pixel position and frame index
     uint seed = RNG::SeedThread(DTid.x * 19349663 ^ DTid.y * 83492791 ^ g_cb.frameIndex * 73856093);
-    
     // Load current frame reservoir data at once to reduce texture fetches
     float4 currentY = g_ReservoirY_In[DTid];
     float4 currentWeight = g_ReservoirWeight_In[DTid]; // x: W_Y, y: w_sum, z: M, w: frame counter
@@ -126,7 +125,7 @@ void main(uint2 DTid : SV_DispatchThreadID)
         
         // Load previous frame reservoir data in one batch
         float4 prevY = g_PrevReservoirY_In[prevPixelPos];
-        if (prevY.w == 0)
+        if (prevY.w < 0.5f)
         {
             g_ReservoirY_Out[DTid] = currentY;
             g_ReservoirWeight_Out[DTid] = currentWeight;
@@ -177,7 +176,6 @@ void main(uint2 DTid : SV_DispatchThreadID)
         }
             
         // Only process valid samples (prevY.w > 0.5f)
-        if (prevY.w > 0.5f)
         {
             float3 toLight = normalize(prevY.xyz - worldPosXYZ);
             float pdfValue = EvalP(toLight, diffuse, prevLightSample.xyz, worldNormal);
