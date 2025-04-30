@@ -34,6 +34,23 @@ float EvalP(float3 toLight, float3 diffuse, float3 radiance, float3 normal)
     return length(color); // scalar pdf target
 }
 
+
+// Optimized reservoir update function using inout parameters
+void UpdateReservoir(inout float4 y, inout float4 lightSample, inout float4 lightNormalArea,
+                     inout float wSum, inout int M,
+                     float4 candidateY, float4 candidateLightSample, float4 candidateLightNormalArea,
+                     float w, inout uint seed)
+{
+    wSum += w;
+    M += 1;
+    if (wSum > 0 && RNG::Random01(seed) < (w / wSum))
+    {
+        y = candidateY;
+        lightSample = candidateLightSample;
+        lightNormalArea = candidateLightNormalArea;
+    }
+}
+
 // Compute shader entry point
 [numthreads(DefaultComputeShaderParams::ThreadGroup::Width, DefaultComputeShaderParams::ThreadGroup::Height, 1)]
 void main(uint2 DTid : SV_DispatchThreadID)
@@ -49,167 +66,183 @@ void main(uint2 DTid : SV_DispatchThreadID)
     if (DTid.x >= cb.textureDim.x || DTid.y >= cb.textureDim.y)
         return;
     
-    // Load current pixel data
+     // --- Load Current Pixel Data ---
     float4 worldPos = g_rtGBufferPosition[DTid];
-    
-    // Early background check - return early to avoid unnecessary processing
+
+    // --- Background Check ---
+    // Reference code does this check (gWsPos[pixelPos].w == 0)
     if (worldPos.w == 0.0f)
     {
-        g_ReservoirY_Out[DTid] = g_ReservoirWeight_In[DTid];
-        g_ReservoirWeight_Out[DTid] = g_ReservoirY_In[DTid];
-        g_LightSample_Out[DTid] = g_LightSample_In[DTid];
-        g_LightNormalArea_Out[DTid] = g_LightNormalArea_In[DTid];
+        // Write invalid/empty reservoir state
+        g_ReservoirY_Out[DTid] = float4(0, 0, 0, 0); // Mark as invalid
+        g_ReservoirWeight_Out[DTid] = float4(0, 0, 0, g_ReservoirWeight_In[DTid].w); // W=0, w_sum=0, M=0, keep frameIdx
+        g_LightSample_Out[DTid] = float4(0, 0, 0, 0);
+        g_LightNormalArea_Out[DTid] = float4(0, 0, 0, 0);
         return;
     }
-    
-    // Decode normal and depth - do this only once
-    NormalDepthTexFormat normalDepth = g_rtGBufferNormalDepth[DTid];
+
+    int frameIdx = (int) g_ReservoirWeight_In[DTid].w; // Frame index from input reservoir
+    uint seed = RNG::SeedThread(DTid.x * 16807 ^ DTid.y * 65539 ^ frameIdx * 48271 ^ (DTid.x + DTid.y + frameIdx) * 22801);
+    // --- Initialize NEW Output Reservoir (Empty) ---
+    float4 outY = float4(0.0f, 0.0f, 0.0f, 0.0f); // Initialize as invalid (.w = 0)
+    float4 outLightSample = float4(0.0f, 0.0f, 0.0f, 0.0f);
+    float4 outLightNormalArea = float4(0.0f, 0.0f, 0.0f, 0.0f);
+    float outWsum = 0.0f;
+    int outM = 0;
+    // float final_W will be calculated at the end
+
+    // --- Load Current Pixel's Geometric Data ---
+    float3 worldPosXYZ = g_rtGBufferPosition[DTid.xy].xyz;
     float3 worldNormal;
     float pixelDepth;
-    DecodeNormalDepth(normalDepth, worldNormal, pixelDepth);
+    DecodeNormalDepth(g_rtGBufferNormalDepth[DTid.xy], worldNormal, pixelDepth);
+    float3 diffuseAlbedo = g_rtAOSurfaceAlbedo[DTid.xy].xyz; // Diffuse albedo (Kd) from G-buffer]
     
-    // Pre-load albedo to avoid multiple accesses in the loop
-    float3 albedo = g_rtAOSurfaceAlbedo[DTid].xyz;
+    uint width = cb.textureDim.x;
+    uint height = cb.textureDim.y;
+    // --- Process Current Pixel's Reservoir (First Contribution) ---
+    float4 currentY = g_ReservoirY_In[DTid.xy];
+    if (currentY.w > 0.5f) // Check if the current pixel's input reservoir is valid
+    {
+        float4 currentWeight = g_ReservoirWeight_In[DTid.xy];
+        float4 currentLightSample = g_LightSample_In[DTid.xy];
+        float4 currentLightNormalArea = g_LightNormalArea_In[DTid.xy];
+
+        float currentW = currentWeight.x;
+        int currentM = max(1, (int) currentWeight.z); // M should be at least 1 if valid
+
+        // Calculate the PDF of the current pixel's sample evaluated at the current pixel itself
+        float3 dirToCurrentLight = normalize(currentY.xyz - worldPosXYZ);
+        float p_hat_current = EvalP(dirToCurrentLight, diffuseAlbedo, currentLightSample.xyz, worldNormal);
+
+        // Calculate the weight for combining this reservoir's sample
+        float w_current_combine = p_hat_current * currentW * (float) currentM;
+        int tempM = currentM;
+        // Update the (initially empty) output reservoir with the current pixel's data
+        // Since it's the first contribution, it will always be selected if w_current_combine > 0
+        UpdateReservoir(outY, outLightSample, outLightNormalArea, outWsum, tempM,
+                        currentY, currentLightSample, currentLightNormalArea, w_current_combine, seed);
+
+        // Add the number of samples from the current pixel's reservoir
+        outM += currentM;
+    }
+    // If currentY.w <= 0.5f, the current pixel doesn't contribute initially. outM remains 0.
+
+    // --- Pre-compute Spatial Reuse Constants ---
+    const float normalThreshold = 0.9063; // cos(25 degrees)
+    const float depthThresholdRelative = 0.1; // Relative depth threshold (10%)
+    const int SAMPLES = 5; // Number of spatial neighbors to check
+    const float RADIUS = 10.0; // Search radius in pixels
+    const int2 iBOUNDS = int2(width, height) - 1; // Use int bounds for clamping
     
-    // Load current reservoir state at once
-    float4 reservoirWeight = g_ReservoirWeight_In[DTid];
-    float4 reservoirY = g_ReservoirY_In[DTid];
-    float4 lightSample = g_LightSample_In[DTid];
-    float4 lightNormalArea = g_LightNormalArea_In[DTid];
-    
-    // Unpack reservoir state
-    float W_Y = reservoirWeight.x; // Current weight
-    float w_sum = reservoirWeight.y; // Sum of weights
-    int M = (int) reservoirWeight.z; // Number of samples
-    uint frameIdx = reservoirWeight.w; // Frame index
-    int M_sum = M;
-    
-    // Initialize random seed
-    uint seed = RNG::SeedThread(DTid.x * 16807 ^ DTid.y * 65539 ^ frameIdx * 48271 ^ (DTid.x + DTid.y + frameIdx) * 22801);
-    
-    // Pre-compute constant values
-    const float normalThreshold = 0.9063; // cos(25°)
-    const float depthThresholdMin = 0.9;
-    const float depthThresholdMax = 1.1;
-    const int SAMPLES = 5;
-    const float RADIUS = 10.0;
-    const float2 BOUNDS = float2(cb.textureDim.x, cb.textureDim.y) - 1;
-    
-    // Create local cache for values that might be used multiple times
-    float3 worldPosXYZ = worldPos.xyz;
-    
-    // Sample neighboring pixels - use compact loop
+    // --- Iterate Through Spatial Neighbors ---
     [unroll(SAMPLES)]
     for (int i = 0; i < SAMPLES; i++)
     {
         // Generate neighbor sampling point
         float r = RADIUS * sqrt(RNG::Random01inclusive(seed));
-        float theta = 2.0 * PI * RNG::Random01(seed);
-        int2 neighborDTid = int2(DTid) + int2(r * cos(theta), r * sin(theta));
-        
-        // Boundary check - use bit operations and bounds constants
-        if (any(neighborDTid < 0) || any(neighborDTid > BOUNDS))
+        float theta = 2.0 * 3.14159 * RNG::Random01(seed);
+        // Calculate offset and add to current pixel coordinates
+        float2 offset = float2(r * cos(theta), r * sin(theta));
+        int2 neighborDTid = int2(round(float(DTid.x) + offset.x), round(float(DTid.y) + offset.y));
+
+        // Clamp neighbor coordinates to texture bounds
+        neighborDTid = clamp(neighborDTid, int2(0, 0), iBOUNDS);
+
+        // Skip self-sampling explicitly (though clamping might handle some cases)
+        if (neighborDTid.x == DTid.x && neighborDTid.y == DTid.y)
+        {
             continue;
-        
-        // Get neighbor data
-        float4 neighborPos = g_rtGBufferPosition[neighborDTid];
-        
-        // Background check
-        if (neighborPos.w == 0)
-            continue;
-        
-        // Decode neighbor normal and depth
-        NormalDepthTexFormat neighborNormalDepth = g_rtGBufferNormalDepth[neighborDTid];
+        }
+
+        // --- Neighbor Geometric Validity Checks ---
         float3 neighborNormal;
         float neighborDepth;
-        DecodeNormalDepth(neighborNormalDepth, neighborNormal, neighborDepth);
-        
-        // Normal and depth check - use parallel comparisons
-        bool isValidNeighbor =
-            dot(worldNormal, neighborNormal) >= normalThreshold &&
-            neighborDepth <= pixelDepth * depthThresholdMax &&
-            neighborDepth >= pixelDepth * depthThresholdMin;
-            
-        if (!isValidNeighbor)
+        DecodeNormalDepth(g_rtGBufferNormalDepth[neighborDTid], neighborNormal, neighborDepth);
+
+        // Normal check
+        if (dot(worldNormal, neighborNormal) < normalThreshold)
         {
             continue;
         }
-        
-        // Get neighbor reservoir data
-        float4 neighborReservoirY = g_ReservoirY_In[neighborDTid];
-        
-        // Check sample validity
-        if (neighborReservoirY.w < 0.5f)
+
+        // Depth check
+        if (abs(neighborDepth - pixelDepth) > depthThresholdRelative * pixelDepth)
         {
-            float4 neighborReservoirWeight = g_ReservoirWeight_In[neighborDTid];
-            M_sum += (int) neighborReservoirWeight.z;
             continue;
         }
-        
-        // Now fetch more neighbor data - only when needed
-        float4 neighborReservoirWeight = g_ReservoirWeight_In[neighborDTid];
+
+        // --- Neighbor Reservoir Validity and Combination ---
+        float4 neighborY = g_ReservoirY_In[neighborDTid];
+
+        // Check if the neighbor's reservoir itself is valid
+        if (neighborY.w < 0.5f)
+        {
+            continue; // Skip invalid neighbor reservoirs
+        }
+
+        // Load remaining neighbor reservoir data
+        float4 neighborWeight = g_ReservoirWeight_In[neighborDTid];
         float4 neighborLightSample = g_LightSample_In[neighborDTid];
-        
-        // Calculate light direction and PDF
-        float3 neighborLightPosW = neighborReservoirY.xyz;
-        float3 dirToLight = normalize(neighborLightPosW - worldPosXYZ);
-        
-        // Evaluate PDF for the current pixel
-        float p_hat = EvalP(dirToLight, albedo, neighborLightSample.xyz, worldNormal);
-        
-        // Calculate the weight for this sample
-        float w = p_hat * neighborReservoirWeight.x * (float) ((int) neighborReservoirWeight.z);
-        
-        // Update reservoir
-        w_sum += w;
-        
-        // Conditionally update the reservoir if weight is large enough
-        bool shouldUpdate = w_sum > 0 && RNG::Random01(seed) < (w / w_sum);
-        if (shouldUpdate)
-        {
-            lightSample = neighborLightSample;
-            lightNormalArea = g_LightNormalArea_In[neighborDTid];
-            reservoirY = float4(neighborLightPosW, 1.0);
-        }
-        
-        M_sum += (int) neighborReservoirWeight.z;
-    }
-    
-    // Update M to include the sum of all considered samples
-    M = M_sum;
-    
-    // Finalize reservoir
-    if (reservoirY.w > 0.5f)
+        float4 neighborLightNormalArea = g_LightNormalArea_In[neighborDTid];
+
+        // Extract neighbor stats
+        float neighborW = neighborWeight.x;
+        int neighborM = max(1, (int) neighborWeight.z); // M should be at least 1 if valid
+
+        // Calculate the PDF of the neighbor's sample evaluated at the *current* pixel
+        float3 dirToNeighborLight = normalize(neighborY.xyz - worldPosXYZ);
+        float p_hat_neighbor = EvalP(dirToNeighborLight, diffuseAlbedo, neighborLightSample.xyz, worldNormal);
+
+        // Calculate the weight for combining this neighbor's reservoir
+        float w_neighbor_combine = p_hat_neighbor * neighborW * (float) neighborM;
+        int tempM = neighborM;
+        // Update the output reservoir by potentially merging the neighbor's sample
+        UpdateReservoir(outY, outLightSample, outLightNormalArea, outWsum, tempM,
+                        neighborY, neighborLightSample, neighborLightNormalArea, w_neighbor_combine, seed);
+
+        // Accumulate the number of samples seen from the neighbor
+        outM += neighborM;
+
+    } // End spatial neighbor loop
+
+    // --- Finalize Output Reservoir Weight ---
+    float final_W = 0.0f;
+    if (outY.w > 0.5f && outM > 0) // Check if a valid sample exists in the output and M > 0
     {
-        float3 vecToLight = reservoirY.xyz - worldPosXYZ;
-        float distToLight = length(vecToLight);
-        
-        if (distToLight > 0)
+        // Calculate the PDF of the *final chosen sample* (stored in outY) evaluated at the current pixel
+        float3 dirToFinalLight = normalize(outY.xyz - worldPosXYZ);
+        float p_hat_final = EvalP(dirToFinalLight, diffuseAlbedo, outLightSample.xyz, worldNormal);
+
+        // Calculate the final weight W = w_sum / (M * p_hat)
+        if (abs(p_hat_final) > 1e-6f)
         {
-            float3 dirToLight = vecToLight / distToLight;
-            
-            // Evaluate PDF for the current pixel with the selected sample
-            float p_hat_s = EvalP(dirToLight, albedo, lightSample.xyz, worldNormal);
-            
-            // Calculate final weight
-            W_Y = (abs(p_hat_s) < 1e-5) ? 0.0 : (w_sum / (p_hat_s * (float) M));
+            final_W = outWsum / (p_hat_final * (float) outM);
         }
         else
         {
-            // Zero distance to light is invalid
-            W_Y = 0;
-            reservoirY.w = 0;
+            // If p_hat is zero for the final sample, the reservoir becomes invalid for this pixel
+            final_W = 0.0f;
+            outY.w = 0.0f; // Mark the reservoir as invalid
+            outWsum = 0.0f;
+             // Keep outM as the count of samples considered, even if the final one was bad
         }
     }
     else
     {
-        // No valid sample
-        W_Y = 0;
+        // If no valid sample ended up in the reservoir (e.g., started invalid and all neighbors were invalid/rejected)
+        final_W = 0.0f;
+        outWsum = 0.0f;
+        outY.w = 0.0f; // Ensure invalidity is marked
+        // If outY is invalid, outM should logically be 0 as no valid sample represents the stream.
+        if (outY.w < 0.5f)
+            outM = 0;
     }
-    
-    // Write results back to output textures
-    g_ReservoirY_Out[DTid] = reservoirY;
-    g_ReservoirWeight_Out[DTid] = float4(W_Y, w_sum, M, frameIdx);
-    g_LightSample_Out[DTid] = lightSample;
-    g_LightNormalArea_Out[DTid] = lightNormalArea;
+
+
+    // --- Write Output ---
+    g_ReservoirY_Out[DTid.xy] = outY; // Final chosen sample position (and validity in .w)
+    g_ReservoirWeight_Out[DTid.xy] = float4(final_W, outWsum, (float) outM, outY.w); // Store final W, Wsum, M, and validity
+    g_LightSample_Out[DTid.xy] = outLightSample; // Final chosen light sample properties
+    g_LightNormalArea_Out[DTid.xy] = outLightNormalArea; // Final chosen light normal/area
 }

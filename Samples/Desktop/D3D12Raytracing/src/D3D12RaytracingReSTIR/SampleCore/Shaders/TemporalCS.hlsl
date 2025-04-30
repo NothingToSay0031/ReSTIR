@@ -148,7 +148,7 @@ void main(uint2 DTid : SV_DispatchThreadID)
             
         // Limit number of samples in previous reservoir (prevent too much bias)
         // Use multiplication instead of division when possible
-        const float MAX_RATIO = 20.0f;
+        const float MAX_RATIO = 10.0f;
         if (prevM > MAX_RATIO * currentM)
         {
             float scaleFactor = MAX_RATIO * currentM / prevM;
@@ -170,7 +170,6 @@ void main(uint2 DTid : SV_DispatchThreadID)
             float3 toLight = normalize(currentY.xyz - worldPosXYZ);
             float pdfValue = EvalP(toLight, diffuse, currentLightSample.xyz, worldNormal);
             float w1 = pdfValue * currentW * float(currentM);
-                
             UpdateReservoir(outY, outLightSample, outLightNormalArea, outWsum, outM,
                             currentY, currentLightSample, currentLightNormalArea, w1, seed);
         }

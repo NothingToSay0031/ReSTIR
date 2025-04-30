@@ -803,14 +803,14 @@ void Pathtracer::UpdateConstantBuffer(Scene& scene) {
     // TODO: Light for house, press 4 to change RTAO ray lengths, then we could see
     // acceptable inner house result. But need to improve the temporal and spatial reuse,
     // also need a denoiser for the pathtracing result.
-    //m_CB->numAreaLights += 1;
-    //m_CB->areaLights[numLights].position = XMFLOAT3(-14, 5, 6);
-    //m_CB->areaLights[numLights].normal = XMFLOAT3(1, 0, 0);
-    //m_CB->areaLights[numLights].color = color;
-    //m_CB->areaLights[numLights].intensity = 5.f;
-    //m_CB->areaLights[numLights].width = 0.05f;
-    //m_CB->areaLights[numLights].height = 0.1f;
-    //m_CB->areaLights[numLights].area = width * height;
+    m_CB->numAreaLights += 1;
+    m_CB->areaLights[numLights].position = XMFLOAT3(-14, 5, 6);
+    m_CB->areaLights[numLights].normal = XMFLOAT3(1, 0, 0);
+    m_CB->areaLights[numLights].color = color;
+    m_CB->areaLights[numLights].intensity = 1.f;
+    m_CB->areaLights[numLights].width = 0.05f;
+    m_CB->areaLights[numLights].height = 0.1f;
+    m_CB->areaLights[numLights].area = width * height;
   };
   XMFLOAT3 center = m_CB->lightPosition;
   XMFLOAT3 color = scene.m_lightColor;
