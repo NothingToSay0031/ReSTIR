@@ -55,13 +55,10 @@ void main(uint2 DTid : SV_DispatchThreadID)
     // Early background check - return early to avoid unnecessary processing
     if (worldPos.w == 0.0f)
     {
-        // Batch reset and return
-        uint frameIdx = g_ReservoirWeight_In[DTid].w; // Only read frame index
-        float4 zeroVec = float4(0, 0, 0, 0);
-        g_ReservoirY_Out[DTid] = zeroVec;
-        g_ReservoirWeight_Out[DTid] = float4(0, 0, 0, frameIdx);
-        g_LightSample_Out[DTid] = zeroVec;
-        g_LightNormalArea_Out[DTid] = zeroVec;
+        g_ReservoirY_Out[DTid] = g_ReservoirWeight_In[DTid];
+        g_ReservoirWeight_Out[DTid] = g_ReservoirY_In[DTid];
+        g_LightSample_Out[DTid] = g_LightSample_In[DTid];
+        g_LightNormalArea_Out[DTid] = g_LightNormalArea_In[DTid];
         return;
     }
     
@@ -88,7 +85,7 @@ void main(uint2 DTid : SV_DispatchThreadID)
     int M_sum = M;
     
     // Initialize random seed
-    uint seed = RNG::SeedThread(DTid.x * 19349663 ^ DTid.y * 73856093 ^ frameIdx * 83492791);
+    uint seed = RNG::SeedThread(DTid.x * 16807 ^ DTid.y * 65539 ^ frameIdx * 48271 ^ (DTid.x + DTid.y + frameIdx) * 22801);
     
     // Pre-compute constant values
     const float normalThreshold = 0.9063; // cos(25°)
@@ -135,9 +132,6 @@ void main(uint2 DTid : SV_DispatchThreadID)
             
         if (!isValidNeighbor)
         {
-            // Even if not a valid neighbor, we still need to add its M value
-            float4 neighborReservoirWeight = g_ReservoirWeight_In[neighborDTid];
-            M_sum += (int) neighborReservoirWeight.z;
             continue;
         }
         
