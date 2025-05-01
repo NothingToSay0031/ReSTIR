@@ -2,7 +2,11 @@
 
 ## Group Members
 
-HongweiJi_ToriDunn_AnZhang
+- Hongwei Ji
+
+- Tori Dunn
+
+- An Zhang
 
 ## TODO List
 
@@ -38,6 +42,37 @@ HongweiJi_ToriDunn_AnZhang
 - [ ] Compare performance and quality across different settings and baselines
 - [ ] Modify the default scene (optional)
     - Add or adjust geometry from https://github.com/wallisc/DuosRenderer/tree/DXRRenderer/Assets
+## Screenshots
+
+### Ray Tracing
+![](https://raw.githubusercontent.com/NothingToSay0031/Images/main/202504302051876.png)
+### Temporal Reuse
+![](https://raw.githubusercontent.com/NothingToSay0031/Images/main/202504302054306.png)
+### Spatial Reuse
+![](https://raw.githubusercontent.com/NothingToSay0031/Images/main/202504302056460.png)
+### Resolve
+![](https://raw.githubusercontent.com/NothingToSay0031/Images/main/202504302056316.png)
+### Performance
+![](https://raw.githubusercontent.com/NothingToSay0031/Images/main/202504302057647.png)
+### Scene Comparison
+![](https://raw.githubusercontent.com/NothingToSay0031/Images/main/202504302035894.png)
+
+![](https://raw.githubusercontent.com/NothingToSay0031/Images/main/202504302035302.png)
+
+![](https://raw.githubusercontent.com/NothingToSay0031/Images/main/202504302035304.png)
+
+![](https://raw.githubusercontent.com/NothingToSay0031/Images/main/202504302036152.png)
+
+![](https://raw.githubusercontent.com/NothingToSay0031/Images/main/202504302039122.png)
+
+![](https://raw.githubusercontent.com/NothingToSay0031/Images/main/202504302040984.png)
+
+![](https://raw.githubusercontent.com/NothingToSay0031/Images/main/202504302040484.png)
+
+![](https://raw.githubusercontent.com/NothingToSay0031/Images/main/202504302040758.png)
+
+
+
 
 # DirectX-Graphics-Samples
 This repo contains the DirectX 12 Graphics samples that demonstrate how to build graphics intensive applications for Windows 10.
