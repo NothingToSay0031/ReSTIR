@@ -1,4 +1,6 @@
-# CSCI-580 Project: Raytracing ReSTIR Implementation
+# Raytracing ReSTIR Implementation
+
+![](https://raw.githubusercontent.com/NothingToSay0031/Images/main/202505011544661.png)
 
 ## Group Members
 
@@ -7,6 +9,56 @@
 - Tori Dunn
 
 - An Zhang
+
+## Usage
+
+D3D12RaytracingReSTIR.exe [...]
+* [-forceAdapter \<ID>] - create a D3D12 device on an adapter <ID>. Defaults to adapter 0
+* [-vsync] - renders with VSync enabled
+* [-disableUI] - disables GUI rendering
+
+> The sample defaults to 1080p window size and 1080p RTAO. In practice, AO is done at quarter resolution as the 4x performance overhead generally doesn't justify the quality increase, especially on higher resolutions/dpis. Therefore, if you switch to higher window resolutions, such as 4K, also switch to quarter res RTAO via QuarterRes UI option to improve the performance.
+
+### UI
+The title bar of the sample provides runtime information:
+* Name of the sample
+* Frames per second
+* GPU[ID]: name
+
+The GUI menu in the top left corner provides a runtime information and a multitude of dynamic settings for the Scene, RTAO and the Denoiser components. 
+* UP/DOWN - navigate among the settings 
+* LEFT/RIGHT - change the setting
+* Backspace - toggles the settings menu ON/OFF. If "Display Profiler" is enabled, it toggles between settings menu and a profiler UI.
+
+In the Scene menu, you can change the following settings for ReSTIR:
+
+* **Enable Temporal Reuse** - toggles Temporal Reuse ON/OFF
+* **Enable Spatial Reuse** - toggles Spatial Reuse ON/OFF
+* **WRS Reservoir Size** - sets the size of the reservoir for Weighted Reservoir Sampling. The default value is 32.
+
+
+### Controls
+* ALT+ENTER - toggles between windowed and fullscreen modes
+* W,S - moves camera forward and back
+* A,D - moves camera to the side
+* Shift - toggles camera movement amplitude
+* Hold left mouse key and drag - rotate camera's focus at position
+* Hold right mouse key and drag - rotate scene
+* L - enable/disable light animation
+* C - enable/disable camera animation
+* T - toggles scene animation
+* 0 - Toggles Ground Truth spp vs 1 spp and switches to raw RTAO visualization
+* 1 - Raw/single frame RTAO visualization
+* 2 - Denoised RTAO visualization
+* 3 - ReSTIR + Specular PBR Pathtracer + RTAO visualization
+* 4 - Toggles RTAO ray lengths - short | long
+* ENTER - Toggles RTAO ON/OFF in "Specular PBR Pathracer + RTAO visualization mode"
+* F9 - does a profiling pass. Renders 1000 frames, rotates camera 360 degrees and outputs GPU times to Profile.csv
+* space - pauses/resumes rendering
+* U/Y - moves car by the house back and forth
+* J/M - moves spaceship up and down
+* H/K - rotates spaceship around scene's center
+* ESC - terminate the application
 
 ## TODO List
 
@@ -32,7 +84,7 @@
     - [x] Temporal Reuse Shader.
     - [x] Shade Pixel.
 
-### Current Issues
+### Future Work
 - [ ] Improving or extending the `GenerateAreaLights` function.
 - [ ] PBRT Light Loading
 - [ ] Invisible Light Sources
