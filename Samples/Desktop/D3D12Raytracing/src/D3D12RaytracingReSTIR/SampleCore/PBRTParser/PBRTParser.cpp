@@ -249,11 +249,17 @@ namespace PBRTParser
             else if (!lastParsedWord.compare("AreaLightSource"))
             {
                 ParseAreaLightSource(fileStream, outputScene);
+                /*int a = m_AttributeStack.size();
+                if (a == 1) {
+                    std::cout << "1" << std::endl;
+                }*/
+
             }
             else if (!lastParsedWord.compare("AttributeBegin"))
             {
                 m_AttributeStack.push(Attributes());
                 fileStream >> lastParsedWord;
+                
             }
             else if (!lastParsedWord.compare("AttributeEnd"))
             {
@@ -527,6 +533,7 @@ namespace PBRTParser
 
             ThrowIfTrue(outputScene.m_EnvironmentMap.m_FileName.size() > 0, L"Multiple environment maps defined");
             outputScene.m_EnvironmentMap.m_FileName = m_relativeDirectory + CorrectNameString(ParseString(lineStream));
+            //std::cout << "1" << std::endl;
         }
     }
 

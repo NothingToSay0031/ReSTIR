@@ -60,6 +60,7 @@ private:
     void CreateAuxilaryDeviceResources();
 
     void GenerateGrassGeometry();
+    void CreateEmissiveQuad();
     void CreateIndexAndVertexBuffers(const GeometryDescriptor& desc, D3DGeometry* geometry);
     void LoadPBRTScene();
     void LoadSceneGeometry();

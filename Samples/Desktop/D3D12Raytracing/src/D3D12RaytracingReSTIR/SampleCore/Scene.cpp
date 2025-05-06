@@ -435,6 +435,7 @@ void Scene::LoadSceneGeometry()
     LoadPBRTScene();
 #if RENDER_GRASS_GEOMETRY
     InitializeGrassGeometry();
+    CreateEmissiveQuad();
 #endif
 }
 
@@ -575,6 +576,62 @@ void Scene::InitializeGrassGeometry()
     ZeroMemory(m_prevFrameLODs, ARRAYSIZE(m_prevFrameLODs) * sizeof(m_prevFrameLODs[0]));
 }
 
+
+
+void Scene::CreateEmissiveQuad()
+{
+    auto device = m_deviceResources->GetD3DDevice();
+    auto commandList = m_deviceResources->GetCommandList();
+
+    // 1.  CPU-side vertex / index data ---------------------------------
+    std::vector<VertexPositionNormalTextureTangent> vb =
+    {
+        {{-1,0,-0.5f}, {0,0,1}, {0,0}, {1,0,0}},   // v0
+        {{ 1,0,-0.5f}, {0,0,1}, {1,0}, {1,0,0}},   // v1
+        {{ 1,0, 0.5f}, {0,0,1}, {1,1}, {1,0,0}},   // v2
+        {{-1,0, 0.5f}, {0,0,1}, {0,1}, {1,0,0}},   // v3
+    };
+    std::vector<Index> ib = { 0,1,2, 0,2,3 };
+
+    // 2.  Register a bottom-level AS container -------------------------
+    const std::wstring kName = L"EmissiveQuad";
+    auto& blasGeo = m_bottomLevelASGeometries[kName];
+    blasGeo.SetName(kName);
+    blasGeo.m_indexFormat = DXGI_FORMAT_R32_UINT;
+    blasGeo.m_vertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
+    blasGeo.m_ibStrideInBytes = sizeof(Index);
+    blasGeo.m_vbStrideInBytes = sizeof(VertexPositionNormalTextureTangent);
+    blasGeo.m_geometries.resize(1);        // one mesh
+    blasGeo.m_numTriangles = 2;
+
+    // 3.  Upload buffers & descriptors (uses your existing helper) -----
+    GeometryDescriptor gd{};
+    gd.vb.count = (UINT)vb.size();   gd.vb.vertices = vb.data();
+    gd.ib.count = (UINT)ib.size();   gd.ib.indices = ib.data();
+    CreateGeometry(device, commandList, m_cbvSrvUavHeap.get(), gd,
+        &blasGeo.m_geometries[0]);
+
+    // 4.  Create an **emissive** material entry ------------------------
+    PrimitiveMaterialBuffer mat{};
+    mat.Kd = XMFLOAT3(15.f, 14.f, 13.f);   // bright warm light
+    mat.Ks = mat.Kr = mat.Kt = XMFLOAT3(0, 0, 0);
+    mat.opacity = XMFLOAT3(1, 1, 1);
+    mat.roughness = 0.0f;
+    mat.type = MaterialType::Matte;     // simple lambert
+    UINT materialID = (UINT)m_materials.size();
+    m_materials.push_back(mat);
+
+    // 5.  Hook the geometry into BLAS list -----------------------------
+    bool animated = false;
+    D3D12_GPU_DESCRIPTOR_HANDLE nullTex = m_nullTexture.gpuDescriptorHandle;
+    blasGeo.m_geometryInstances.push_back(
+        GeometryInstance(blasGeo.m_geometries[0],
+            materialID,
+            nullTex,               // no albedo tex
+            nullTex,               // no normal map
+            D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE,
+            animated));
+}
 // Build geometry used in the sample.
 void Scene::InitializeGeometry()
 {
