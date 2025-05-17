@@ -2,14 +2,6 @@
 
 ![](https://raw.githubusercontent.com/NothingToSay0031/Images/main/202505011544661.png)
 
-## Group Members
-
-- Hongwei Ji
-
-- Tori Dunn
-
-- An Zhang
-
 ## Usage
 
 D3D12RaytracingReSTIR.exe [...]
@@ -90,9 +82,9 @@ In the Scene menu, you can change the following settings for ReSTIR:
 - [ ] Invisible Light Sources
 
 ### Test Variants & Tuning
-- [ ] Experiment with different ReSTIR parameters (e.g. reservoir size.)
-- [ ] Compare performance and quality across different settings and baselines
-- [ ] Modify the default scene (optional)
+- [x] Experiment with different ReSTIR parameters (e.g. reservoir size.)
+- [x] Compare performance and quality across different settings and baselines
+- [ ] Modify the default scene
     - Add or adjust geometry from https://github.com/wallisc/DuosRenderer/tree/DXRRenderer/Assets
 ## Screenshots
 
