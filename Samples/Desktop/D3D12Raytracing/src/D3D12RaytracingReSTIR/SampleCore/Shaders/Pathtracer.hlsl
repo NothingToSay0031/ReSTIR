@@ -363,7 +363,7 @@ float3 Shade(
             
             if (NdotL > 0.0 && LdotN > 0.0)
             {
-                float3 radiance = areaLight.color * areaLight.intensity;
+                float3 radiance = areaLight.color * areaLight.intensity / distanceSquared;
                 float eval = EvalP(lightDir, Kd, radiance, N);
                 float wi = eval / p;
                 UpdateReservoir(DTid, sampledPosition, lightDir, distanceSquared, lightNormal,
