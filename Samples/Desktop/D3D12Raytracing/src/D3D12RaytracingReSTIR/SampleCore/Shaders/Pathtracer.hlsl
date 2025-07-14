@@ -367,7 +367,7 @@ float3 Shade(
                 float eval = EvalP(lightDir, Kd, radiance, N);
                 float wi = eval / p;
                 UpdateReservoir(DTid, sampledPosition, lightDir, distanceSquared, lightNormal,
-                               areaLight.area, radiance, wi, seed, w_sum, M,
+                               areaLight.area, areaLight.color * areaLight.intensity, wi, seed, w_sum, M,
                                reservoirY, lightSample, lightNormalArea);
             }
         }

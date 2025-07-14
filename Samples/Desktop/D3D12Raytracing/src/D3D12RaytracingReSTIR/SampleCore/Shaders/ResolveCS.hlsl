@@ -64,7 +64,7 @@ void main(uint2 DTid : SV_DispatchThreadID)
         if (dot(-lightDir, lightNormalArea.xyz) > 0)
         {
             float distanceSquared = dot(sampledPosition - worldPos.xyz, sampledPosition - worldPos.xyz);
-            float3 lightColor = lightSample.xyz / distanceSquared;
+            float3 lightColor = lightSample.xyz;
             
             contribution = BxDF::DirectLighting::Shade(
                 type, Kd, Ks, lightColor, false, roughness, worldNormal, V, lightDir);
